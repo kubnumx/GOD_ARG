@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>...</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      background: #000;
+      color: #fff;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: "VT323", monospace;
+    }
+
+    .scene {
+      width: 100%;
+      text-align: center;
+      transform: translateY(-2vh);
+    }
+
+    .question {
+      margin: 0 0 24px;
+      padding: 0 20px;
+      font-size: clamp(24px, 3vw, 38px);
+      font-weight: 400;
+      letter-spacing: 0.04em;
+      line-height: 1.1;
+      animation: pixelFloat 3.8s steps(7, end) infinite;
+      text-shadow:
+        1px 0 rgba(255,255,255,.35),
+        -1px 0 rgba(255,255,255,.18),
+        0 0 12px rgba(255,255,255,.08);
+    }
+
+    .answer {
+      width: min(270px, 65vw);
+      height: 36px;
+      padding: 4px 10px;
+      border: 1px solid rgba(255,255,255,.20);
+      border-radius: 0;
+      outline: none;
+      background: rgba(255,255,255,.02);
+      color: #fff;
+      font: 400 18px "VT323", monospace;
+      letter-spacing: .04em;
+      text-align: center;
+      caret-color: #fff;
+      box-shadow: none;
+    }
+
+    .answer:focus {
+      border-color: rgba(255,255,255,.48);
+      box-shadow: 0 0 12px rgba(255,255,255,.05);
+    }
+
+    .answer::placeholder {
+      color: rgba(255,255,255,.22);
+      opacity: 1;
+    }
+
+    @keyframes pixelFloat {
+      0%, 100% { transform: translate(0, 0); }
+      14% { transform: translate(1px, -2px); }
+      28% { transform: translate(-1px, -5px); }
+      42% { transform: translate(0, -7px); }
+      57% { transform: translate(1px, -4px); }
+      71% { transform: translate(-1px, -2px); }
+      85% { transform: translate(0, -5px); }
+    }
+  </style>
+</head>
+<body>
+  <main class="scene">
+    <h1 class="question">How long did it take her to love God?</h1>
+    <input id="answer" class="answer" type="text" autocomplete="off" spellcheck="false" placeholder="..." aria-label="Answer" />
+  </main>
+
+  <script>
+    const input = document.getElementById("answer");
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+
+      const answer = input.value
+        .trim()
+        .replace(/\s+/g, " ")
+        .toLowerCase();
+
+      if (answer === "the doctrine of power") {
+        window.location.href = "doctrine.html";
+      }
+    });
+  </script>
+</body>
+</html>
