@@ -67,6 +67,29 @@
       box-shadow: 0 0 12px rgba(255,255,255,.05);
     }
 
+    .response-line {
+      min-height: 26px;
+      margin: 14px auto 0;
+      padding: 0 20px;
+      font-size: clamp(18px, 2vw, 25px);
+      letter-spacing: .035em;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 1.2s ease, transform 1.2s ease;
+      text-shadow: 0 0 10px rgba(255,255,255,.08);
+      pointer-events: none;
+    }
+
+    .response-line.show {
+      opacity: .82;
+      transform: translateY(0);
+    }
+
+    .response-line.fade {
+      opacity: 0;
+      transform: translateY(-3px);
+    }
+
     .answer::placeholder {
       color: rgba(255,255,255,.22);
       opacity: 1;
@@ -87,10 +110,49 @@
   <main class="scene">
     <h1 class="question">How long did it take her to love God?</h1>
     <input id="answer" class="answer" type="text" autocomplete="off" spellcheck="false" placeholder="..." aria-label="Answer" />
+    <div id="responseLine" class="response-line" aria-live="polite"></div>
   </main>
 
   <script>
     const input = document.getElementById("answer");
+    const responseLine = document.getElementById("responseLine");
+    let fadeTimer;
+
+    function showResponse(text) {
+      clearTimeout(fadeTimer);
+
+      responseLine.classList.remove("show", "fade");
+      responseLine.textContent = text;
+
+      // Restart the small fade-in animation.
+      void responseLine.offsetWidth;
+      responseLine.classList.add("show");
+
+      fadeTimer = setTimeout(() => {
+        responseLine.classList.remove("show");
+        responseLine.classList.add("fade");
+      }, 3600);
+    }
+
+    function getResponse(answer) {
+      // Specific answers have their own lines.
+      if (answer === "candy") {
+        return "Close... Why are you bringing her up?";
+      }
+
+      if (answer === "chocolate" || answer === "coco") {
+        return "Not her.. But she was cool.";
+      }
+
+      if (answer === "porridge") {
+        return "Let's not talk about her";
+      }
+
+      // Everything else gets one of the two intentionally uncertain replies.
+      return Math.random() < 0.5
+        ? "What Does This Mean?"
+        : "I think I misunderstood";
+    }
 
     input.addEventListener("keydown", (event) => {
       if (event.key !== "Enter") return;
@@ -100,9 +162,15 @@
         .replace(/\s+/g, " ")
         .toLowerCase();
 
+      if (!answer) return;
+
       if (answer === "the doctrine of power") {
         window.location.href = "doctrine.html";
+        return;
       }
+
+      showResponse(getResponse(answer));
+      input.select();
     });
   </script>
 </body>
