@@ -8,6 +8,17 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=VT323&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
   <style>
+    html.secret-mode, body.secret-mode { background:#000; }
+    .secret-overlay { position:fixed; inset:0; z-index:10; background:#000; display:none; align-items:center; justify-content:center; flex-direction:column; opacity:1; transition:opacity 3s ease; }
+    .secret-overlay.active { display:flex; }
+    .secret-overlay.blackout { opacity:0; }
+    .secret-image { display:block; width:min(38vw, 240px); height:auto; image-rendering:pixelated; opacity:0; transition:opacity 8s linear; }
+    .secret-image.visible { opacity:1; }
+    .secret-dialogue { position:absolute; left:50%; bottom:7vh; transform:translateX(-50%); width:min(820px, 90vw); min-height:90px; border:3px solid #fff; background:#000; padding:20px 24px; color:#fff; font:28px "VT323", monospace; text-align:left; line-height:1.25; white-space:pre-wrap; display:none; }
+    .secret-dialogue.active { display:block; }
+    .secret-dialogue:after { content:"▼"; position:absolute; right:18px; bottom:7px; font-size:18px; animation:dialogueBlink 1s steps(2,end) infinite; }
+    @keyframes dialogueBlink { 50% { opacity:0; } }
+    @media(max-width:600px) { .secret-image { width:min(58vw, 220px); } .secret-dialogue { font-size:23px; padding:15px 17px; bottom:4vh; } }
     * { box-sizing: border-box; }
 
     html, body {
@@ -112,10 +123,129 @@
     <div id="responseLine" class="response-line" aria-live="polite"></div>
   </main>
 
+  <div id="secretOverlay" class="secret-overlay" aria-hidden="true">
+    <img id="secretImage" class="secret-image" src="FRIEND_overworld_vision.gif" alt="" />
+    <div id="secretDialogue" class="secret-dialogue" aria-live="polite"></div>
+  </div>
+
   <script>
     const input = document.getElementById("answer");
     const responseLine = document.getElementById("responseLine");
     let fadeTimer;
+    const secretOverlay = document.getElementById("secretOverlay");
+    const secretImage = document.getElementById("secretImage");
+    const secretDialogue = document.getElementById("secretDialogue");
+    let secretStarted = false;
+    let dialogueIndex = 0;
+    let typingTimer = null;
+    let lineTimer = null;
+    let backgroundAudio = null;
+    const secretLines = [
+      "YOUR PARENTS?",
+      "IF YOU ARE LENNY.. YOU MET YOUR FATHER..",
+      "YOUR MOTHER HOWEVER..",
+      "WELL..",
+      "YOULL BE MEETING HER SOON..",
+      "TO THE REST OF YOU..",
+      "I CAN'T EXACTLY SAY WHAT HAPPENED.",
+      "BUT YOULL FIND OUT SOON...",
+      "DO YOU HEAR ME?",
+      "CANCER?",
+      "SHADOW?",
+      "GUANYIN?",
+      "TOUCH?",
+      "FLAME?",
+      "PANDA?",
+      "ROCK?",
+      "STRENGTH?",
+      "ILL BE SEEING YOU..."
+    ];
+    const laughingLines = new Set([
+      "YOULL BE MEETING HER SOON..", "BUT YOULL FIND OUT SOON...", "CANCER?",
+      "SHADOW?", "GUANYIN?", "TOUCH?", "FLAME?", "PANDA?", "ROCK?"
+    ]);
+
+    // If the ending has already happened, keep the page permanently black until RESET.
+    if (localStorage.getItem("parentsSecretFinished") === "true") {
+      document.body.innerHTML = "";
+      document.body.style.cssText = "margin:0;background:#000;width:100vw;height:100vh;";
+    }
+    let resetKeyBuffer = "";
+    document.addEventListener("keydown", (event) => {
+      if (localStorage.getItem("parentsSecretFinished") !== "true") return;
+      if (event.key.length === 1 && /[a-z]/i.test(event.key)) {
+        resetKeyBuffer = (resetKeyBuffer + event.key).slice(-5);
+        if (resetKeyBuffer.toLowerCase() === "reset") {
+          localStorage.removeItem("parentsSecretFinished");
+          location.reload();
+        }
+      } else if (event.key === "Backspace") {
+        resetKeyBuffer = resetKeyBuffer.slice(0, -1);
+      }
+    });
+
+    function beginSecret(skipWait = false) {
+      if (secretStarted || localStorage.getItem("parentsSecretFinished") === "true") return;
+      secretStarted = true;
+      document.querySelector(".scene").style.display = "none";
+      secretOverlay.classList.add("active");
+      secretOverlay.setAttribute("aria-hidden", "false");
+      // Audio starts from the user's Enter key gesture. Browsers may still block autoplay.
+      backgroundAudio = new Audio("Background%20audio.mp3");
+      backgroundAudio.loop = true;
+      backgroundAudio.volume = 0.8;
+      backgroundAudio.play().catch(() => {});
+      if (skipWait) revealSecret();
+      else setTimeout(revealSecret, 120000);
+    }
+
+    function revealSecret() {
+      if (!secretStarted || localStorage.getItem("parentsSecretFinished") === "true") return;
+      secretImage.src = "FRIEND_overworld_vision.gif";
+      secretImage.classList.add("visible");
+      // Dialogue starts only after the image's slow fade has completed.
+      setTimeout(() => {
+        if (secretStarted && localStorage.getItem("parentsSecretFinished") !== "true") showSecretLine();
+      }, 8100);
+    }
+
+    function showSecretLine() {
+      if (dialogueIndex >= secretLines.length) return;
+      const line = secretLines[dialogueIndex];
+      if (laughingLines.has(line)) {
+        secretImage.src = "FRIEND_overworld_laugh.gif";
+      } else {
+        secretImage.src = "FRIEND_overworld_vision.gif";
+      }
+      secretDialogue.classList.add("active");
+      secretDialogue.textContent = "";
+      let charIndex = 0;
+      clearInterval(typingTimer);
+      typingTimer = setInterval(() => {
+        secretDialogue.textContent = line.slice(0, ++charIndex);
+        if (charIndex >= line.length) {
+          clearInterval(typingTimer);
+          if (line === "ILL BE SEEING YOU...") {
+            setTimeout(() => {
+              secretOverlay.classList.add("blackout");
+              if (backgroundAudio) backgroundAudio.pause();
+              setTimeout(() => {
+                localStorage.setItem("parentsSecretFinished", "true");
+                document.body.innerHTML = "";
+                document.body.style.cssText = "margin:0;background:#000;width:100vw;height:100vh;";
+              }, 3100);
+            }, 1800);
+          } else {
+            lineTimer = setTimeout(() => { dialogueIndex++; showSecretLine(); }, 1450);
+          }
+        }
+      }, 48);
+    }
+
+    function resetWebsite() {
+      localStorage.removeItem("parentsSecretFinished");
+      location.reload();
+    }
 
     function showResponse(text) {
       clearTimeout(fadeTimer);
@@ -187,6 +317,26 @@
         .toLowerCase();
 
       if (!answer) return;
+
+      if (answer === "reset") {
+        resetWebsite();
+        return;
+      }
+
+      if (answer === "where are my parents?") {
+        beginSecret(false);
+        return;
+      }
+
+      if (answer === "skip") {
+        if (!secretStarted) {
+          beginSecret(true);
+        } else if (!secretImage.classList.contains("visible")) {
+          // Skip the initial two-minute wait and begin the scene immediately.
+          revealSecret();
+        }
+        return;
+      }
 
       if (answer === "the doctrine of power") {
         window.location.href = "doctrine.html";
