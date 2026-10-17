@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>...</title>
+<style>
+  @font-face { font-family:'Pixels'; src:url('pixels.otf') format('opentype'); font-display:swap; }
+  :root { --bg:#000; --fg:#fff; --soul:#ff2a2a; --dim:#8a8a8a; }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; background:var(--bg); color:var(--fg);
+    font-family:'Pixels','Courier New',monospace; }
+  main { min-height:100%; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:3rem; padding:2rem; text-align:center; }
+  #text { font-size:clamp(1.4rem,4vw,2.6rem); line-height:1.6; max-width:22ch; min-height:3em; }
+  .w { display:inline-block; white-space:nowrap; margin:0 .18em; }
+  .l { display:inline-block; animation:glide 4s steps(1,end) infinite; }
+  @keyframes glide {
+    0%    { transform:translate(0,0); }
+    12.5% { transform:translate(0,-1px); }
+    25%   { transform:translate(1px,-2px); }
+    37.5% { transform:translate(1px,-2px); }
+    50%   { transform:translate(1px,-1px); }
+    62.5% { transform:translate(0,0); }
+    75%   { transform:translate(-1px,1px); }
+    87.5% { transform:translate(-1px,0); }
+  }
+  form { width:min(28rem,90vw); }
+  .box { position:relative; }
+  input, .typed { font:inherit; font-size:1.2rem; line-height:1.4; text-align:center;
+    padding:.9rem 1rem; border:2px solid var(--fg); border-radius:0; }
+  input { display:block; width:100%; background:#000; color:transparent; caret-color:var(--fg); outline:none; }
+  input:focus-visible { outline:2px solid var(--fg); outline-offset:4px; }
+  .typed { position:absolute; inset:0; border-color:transparent; white-space:pre; overflow:hidden;
+    pointer-events:none; color:var(--fg); }
+  #hint { color:var(--fg); font-size:1.1rem; min-height:1.6em; opacity:0; transition:opacity .8s ease; }
+  .viewer { position:fixed; inset:0; z-index:10; background:#000; overflow-y:auto; overflow-x:hidden; }
+  .viewer[hidden] { display:none; }
+  .viewer img { display:block; width:100%; height:auto; opacity:0; transition:opacity .8s ease; }
+  .viewer img.on { opacity:1; }
+  .stage { position:relative; width:100%; }
+  .viewer.fit .stage { height:100%; }
+  #viewerImg2 { display:none; transition:none; }
+  .viewer.seq #viewerImg2 { display:block; position:absolute; inset:0; opacity:0; }
+  .flame { display:none; position:absolute; inset:0; pointer-events:none; mix-blend-mode:screen; opacity:0;
+    background:
+      radial-gradient(ellipse 60% 40% at 25% 100%, rgba(255,120,0,.95), transparent 70%),
+      radial-gradient(ellipse 55% 45% at 70% 100%, rgba(255,60,0,.95), transparent 70%),
+      linear-gradient(to top, rgba(255,150,0,.8), rgba(255,70,0,.35) 40%, transparent 75%); }
+  .viewer.burning .flame { display:block; }
+  .viewer.fit:not([hidden]) { display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .viewer.fit img { width:100%; height:100%; object-fit:contain; }
+  .close { position:fixed; top:.8rem; right:1rem; z-index:11; background:#000; color:var(--fg);
+    border:2px solid var(--fg); font:inherit; font-size:1.2rem; padding:.3rem .8rem; cursor:pointer; border-radius:0; }
+  .close:focus-visible { outline:2px solid var(--fg); outline-offset:3px; }
+  .starpage { position:fixed; inset:0; z-index:8; background:#000; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:2vh; --S:min(68vh,94vw); --R:calc(var(--S) * .48); }
+  .starpage[hidden] { display:none; }
+  .startitle { font-size:clamp(1.2rem,3.4vw,2.2rem); text-align:center; min-height:1.6em; }
+  .starwrap { position:relative; width:var(--S); height:var(--S); }
+  .spin { position:absolute; inset:0; animation:starspin 120s linear infinite; }
+  .spin:focus-within { animation-play-state:paused; }
+  @keyframes starspin { to { transform:rotate(360deg); } }
+  .starline { position:absolute; inset:0; width:100%; height:100%; }
+  .starline path { fill:none; stroke:var(--fg); stroke-width:1.5; vector-effect:non-scaling-stroke; stroke-linejoin:miter; }
+  .pt, .ctr { position:absolute; background:transparent; color:var(--fg); border:0; border-radius:0; caret-color:var(--fg);
+    font:inherit; font-size:calc(var(--S) * .016); text-align:center; padding:0 .2em; outline:none; }
+  .pt { --side:calc(var(--R) * .18); width:var(--side); height:var(--side);
+    left:calc(50% - var(--side) / 2); top:calc(50% - var(--side) / 2);
+    transform:rotate(var(--a)) translateY(calc(var(--R) * -.55)); }
+  .ctr { --side:calc(var(--R) * .3); width:var(--side); height:var(--side);
+    left:calc(50% - var(--side) / 2); top:calc(50% - var(--side) / 2);
+    opacity:0; pointer-events:none; transition:opacity 2.5s ease; }
+  .ctr.show { opacity:1; pointer-events:auto; }
+  .pt:focus-visible, .ctr:focus-visible { outline:none; }
+  .starhint { min-height:1.8em; font-size:1.1rem; text-align:center; opacity:0; transition:opacity .8s ease; }
+  .videoview { position:fixed; inset:0; z-index:10; background:#000; display:flex; align-items:center; justify-content:center; }
+  .videoview[hidden] { display:none; }
+  .videoview video { width:100%; height:100%; object-fit:contain; background:#000; }
+  .ghost { position:fixed; inset:0; z-index:9; background:#000; }
+  .ghost[hidden] { display:none; }
+  .ghoststage { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    opacity:0; transition:opacity 5s ease; }
+  .ghoststage.in { opacity:1; }
+  .ghoststage.out { opacity:0; transition:opacity 3.5s ease; }
+  .ghostimg { width:min(46vh,64vw); height:auto; image-rendering:pixelated; margin-bottom:14vh; }
+  .ghosttext { position:absolute; left:0; right:0; bottom:5vh; height:6.5em; padding:0 8vw;
+    display:flex; justify-content:center; align-items:flex-start; text-align:center;
+    font-size:clamp(1.2rem,3vw,2rem); line-height:1.6; transition:opacity 3.5s ease;
+    text-shadow:2px 2px 0 #000, -2px 2px 0 #000, 2px -2px 0 #000, -2px -2px 0 #000; }
+  .ghosttext.out { opacity:0; }
+  .ghostline { max-width:32em; }
+  .ghost .l { opacity:0; }
+  .ghost .l.on { opacity:1; }
+  .episode { position:fixed; inset:0; z-index:9; background:#000; display:flex; align-items:center;
+    justify-content:center; padding:6vh 8vw; }
+  .episode[hidden] { display:none; }
+  .episodetext { max-width:34em; text-align:center; font-size:clamp(1.2rem,3vw,2rem); line-height:1.6;
+    opacity:0; transition:opacity 3s ease; }
+  .episodetext.in { opacity:1; }
+  .episodetext p { margin:0 0 1.4em; }
+  .judge { position:fixed; inset:0; z-index:9; background:#000; }
+  .judge[hidden] { display:none; }
+  .judgestage { position:absolute; inset:0; overflow:hidden; opacity:0; transition:opacity 3s ease; }
+  .judgestage.in { opacity:1; }
+  .judgeimg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scale(1.06); }
+  .judge .flame { display:block; background:
+    linear-gradient(to top, rgba(255,110,0,.8), rgba(255,60,0,.25) 45%, transparent 75%); }
+  .judgetext { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    pointer-events:none; text-align:center; font-size:clamp(2.2rem,10vw,8rem); letter-spacing:.06em;
+    text-shadow:3px 3px 0 #000, -3px 3px 0 #000, 3px -3px 0 #000, -3px -3px 0 #000, 0 0 30px rgba(0,0,0,.8); }
+  .judgetext .l { animation-name:glidebig; }
+  @keyframes glidebig {
+    0%    { transform:translate(0,0); }
+    12.5% { transform:translate(0,-2px); }
+    25%   { transform:translate(2px,-4px); }
+    37.5% { transform:translate(2px,-5px); }
+    50%   { transform:translate(2px,-3px); }
+    62.5% { transform:translate(0,-1px); }
+    75%   { transform:translate(-2px,1px); }
+    87.5% { transform:translate(-2px,0); }
+  }
+  .fade { animation:fade .8s ease both; }
+  @keyframes fade { from { opacity:0; } to { opacity:1; } }
+  @media (prefers-reduced-motion:reduce) { .l,.fade,.spin { animation:none; } .viewer img { transition:none; } .flame { display:none !important; } .ghoststage, .ghosttext, .episodetext, .judgestage { transition:none; } }
+</style>
+</head>
+<body>
+<main>
+  <div id="text" aria-live="polite"></div>
+  <form id="form" autocomplete="off">
+    <div class="box">
+      <input id="answer" type="text" aria-label="Your answer" spellcheck="false" maxlength="32" autofocus>
+      <div id="typed" class="typed" aria-hidden="true"></div>
+    </div>
+  </form>
+  <div id="hint"></div>
+</main>
+<div id="starpage" class="starpage" hidden>
+  <div id="starTitle" class="startitle" aria-live="polite"></div>
+  <div class="starwrap">
+    <div id="spin" class="spin">
+      <svg class="starline" viewBox="0 0 100 100" aria-hidden="true"><path d="M50.00 2.00 L78.21 88.83 L4.35 35.17 L95.65 35.17 L21.79 88.83 L50.00 2.00 Z"/></svg>
+    </div>
+    <input id="ctr" class="ctr" type="text" maxlength="24" autocomplete="off" spellcheck="false" tabindex="-1" aria-label="Final answer">
+  </div>
+  <div id="starHint" class="starhint"></div>
+</div>
+<div id="ghost" class="ghost" hidden>
+  <div id="ghostStage" class="ghoststage">
+    <img id="ghostImg" class="ghostimg" alt="">
+  </div>
+  <div id="ghostText" class="ghosttext" aria-live="polite"><div id="ghostLine" class="ghostline"></div></div>
+</div>
+<div id="judge" class="judge" hidden>
+  <div id="judgeStage" class="judgestage">
+    <img id="judgeImg" class="judgeimg" alt="">
+    <div id="judgeFlame" class="flame"></div>
+  </div>
+  <div id="judgeText" class="judgetext" aria-live="polite"></div>
+</div>
+<div id="episode" class="episode" hidden><div id="episodeText" class="episodetext"></div></div>
+<div id="videoview" class="videoview" hidden>
+  <button id="vclose" class="close" type="button" aria-label="Close video">X</button>
+  <video id="vid" playsinline></video>
+</div>
+<div id="viewer" class="viewer" hidden>
+  <button id="close" class="close" type="button" aria-label="Close image">X</button>
+  <div id="stage" class="stage">
+    <img id="viewerImg" alt="">
+    <img id="viewerImg2" alt="">
+    <div id="flame" class="flame"></div>
+  </div>
+</div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="burn" x="-5%" y="-5%" width="110%" height="110%">
+    <feTurbulence id="turb" type="fractalNoise" baseFrequency="0.01 0.03" numOctaves="2" seed="3" result="n"/>
+    <feDisplacementMap id="disp" in="SourceGraphic" in2="n" scale="0" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+
+<script>
+/* ============ EDIT THIS PART ============
+   Each room has:
+     text:    what floats in the middle
+     answers: { "typed answer": { say: "reply" } }  or  { go: "roomName" }
+              or { image: "file.png" } to open a fullscreen scrollable image
+              add audio: "song.mp3" to loop a song while it's open,
+              add fit: true to fit a small image on screen instead of scrolling
+              or { video: "clip.mp4" } to play a video fullscreen
+              or { page: "judgement" } to open the fiery image page (JUDGE below)
+              or { page: "episode" } to open the "Next Episode" text page (EPISODE below)
+              or { page: "ghost" } to open the black-screen dialogue page (GHOST below)
+              or { page: "star" } to open the star page (set up in STAR below)
+              add overlay: "b.png", burn: true, once: true, closeOnEnd: true for the
+              slow crossfade + fire effect that ends when the song ends
+              Put several answers on one reply by separating them with |
+              e.g. "chocolate|coco"
+     fallback: reply for any answer you didn't list (set to "" for nothing)
+   Replies fade in, stay for SHOW_MS, then fade out.
+*/
+const SHOW_MS = 3500;   // how long a reply stays (milliseconds)
+
+const rooms = {
+  start: {
+    text: "How Long Did It Take Her To Love God?",
+    answers: {
+      "candy":               { say: "Close... Why are you bringing her up?" },
+      "chocolate|coco":      { say: "Not her.. But she was cool." },
+      "porridge":            { say: "Lets not talk about her." },
+      "tyce|tizhae":         { say: "My Best Friend" },
+      "intery":              { say: "A Good Friend" },
+      "alex":                { say: "A New Friend?" },
+      "grooti":              { say: "Oh. A New Friend?" },
+      "tray":                { say: "Heh.." },
+      "fire":                { say: "He was fun." },
+      "demon":               { say: "We Became Brothers." },
+      "ethan":               { say: "Why Do you know that name" },
+      "buddha":              { say: "Hello?" },
+      "alijah":              { say: "Yes?" },
+      "k10":                 { say: "What's Up?" },
+      "ray":                 { say: "Just Stop." },
+      "brap":                { say: "Dont.. Do this now." },
+      "god":                 { say: "Mhm?" },
+      "zoro":                { say: "Which One?" },
+      "malik":               { say: "An Older Friend." },
+      "watterson|harris":    { say: "Those little names we used to do" },
+      "breadcrumbs":         { say: "I Was Watching" },
+      "tree":                { say: "Was Forgotten the Answer?" },
+      "roofus":              { say: "Stupid Dog." },
+      "matter":              { say: "Why Is It Still So Hard To Be?" },
+      "tails of hell":       { say: "He Gave You The Eggs?" },
+      "erlang shen|sage":    { say: "Too Early" },
+      "the doctrine of power": { image: "doctrine_upscaled.png" },
+      "celestial festival":    { image: "F1.png", audio: "F2.mp3", fit: true },
+      "jinchi":                { image: "JINCHI_WAS_A_IDIOT.png", overlay: "HERES_WHY.png",
+                                 audio: "JINCHI_WAS_A_IDIOT.mp3", fit: true, burn: true,
+                                 once: true, closeOnEnd: true },
+      "i think i know":        { page: "star" },
+      "unc pushing 41":        { video: "UNC_PUSHING_41.mp4" },
+      "where are my parents":  { page: "ghost" },
+      "trien":                 { image: "TRIEN.gif", audio: "sanctuary.mp3", fit: true },
+      "next episode":          { page: "episode" },
+      "what are the eggs for|where will my crimes lead me": { page: "judgement" }
+    },
+    fallback: ""
+  }
+  /* To add another area later, copy a room and point an answer at it:
+     "someanswer": { go: "otherRoom" }                                   */
+};
+
+/* ----- STAR PAGE -----
+   points: the 5 answers, clockwise starting from the point at the top when the
+           page opens (use | for alternates, e.g. "tyce|tizhae")
+   center: appears after all 5 points are right; same format as room answers
+           ({ say: "..." }, { go: "room" } or { image: "x.png" })              */
+const STAR = {
+  music: "d.mp3",
+  title: "What do you think I mean?",
+  points: ["answer1", "answer2", "answer3", "answer4", "answer5"],
+  center: {
+    "centeranswer": { say: "..." }
+  }
+};
+
+/* ----- DIALOGUE PAGE -----
+   Black screen looping the music. After the first loop the gif fades in and the
+   lines start (no fire effect on this page). Click (or Space / Enter) to go to the next line. Put (laugh) at the
+   end of a line to play the laugh gif + sound once that line has finished typing. */
+const GHOST = {
+  music: "Myuu-Lavender-Town-Pokemon-Cover.mp3",
+  gif: "FRIEND_overworld_vision.gif",
+  laughGif: "FRIEND_overworld_laugh.gif",
+  laughSound: "laugh.mp3",
+  lines: [
+    "YOUR PARENTS?",
+    "IF YOU ARE GUIDED BY ARROW.",
+    "THEN YOUR FATHER",
+    "JINCHI (laugh)",
+    "WAS ALREADY MET",
+    "FOR THE REST OF YOU",
+    "YOUR STORY IS STILL GUIDED BY THE HAND OF BUDDHA (laugh)",
+    "BUT I WILL SAY",
+    "YOU MAY DISCOVER THE ANSWER SOONER THEN YOU THINK (laugh)",
+    "I HOPE I AM BEING HEARD.",
+    "THE DAY OF RECKONING WILL BE UPON YOU ALL SOON AND I SHALL BE WAITING",
+    "SEE YOU IN HELL (laugh)"
+  ]
+};
+
+/* ----- NEXT EPISODE PAGE -----
+   Black screen with text and a looping song. Change the lines here each episode. */
+const EPISODE = {
+  music: "FRIENDS.mp3",
+  lines: [
+    "Oh uh the next episode?",
+    "honestly i dont know myself",
+    "Come back to this page every episode and itll change",
+    "A answer may be here someday."
+  ]
+};
+
+/* ----- MAIN SCREEN MUSIC -----
+   Loops on the question page. It starts at the first key press or click (browsers
+   block sound before that), pauses while any other page is open, and resumes after. */
+const MAIN_MUSIC = "another_him.mp3";
+
+/* ----- JUDGEMENT PAGE ----- */
+const JUDGE = {
+  image: "judgement.png",
+  music: "judgement.mp3",
+  word: "JUDGEMENT"
+};
+/* ============ END EDIT ============ */
+
+const textEl  = document.getElementById('text');
+const input   = document.getElementById('answer');
+const typedEl = document.getElementById('typed');
+const hint    = document.getElementById('hint');
+let current = 'start';
+let hideTimer;
+
+// answers are compared with question marks, case and extra spaces ignored
+function clean(str) {
+  return str.toLowerCase().replace(/[?\uFF1F\u00BF]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// split "a|b" keys into one entry per alias
+for (const room of Object.values(rooms)) {
+  const expanded = {};
+  for (const [keys, val] of Object.entries(room.answers)) {
+    keys.split('|').forEach(k => expanded[clean(k)] = val);
+  }
+  room.answers = expanded;
+}
+
+// one floating letter (same motion everywhere)
+function makeLetter(ch, i) {
+  const l = document.createElement('span');
+  l.className = 'l';
+  l.textContent = ch;
+  l.style.animationDelay = (-i * 0.22 - ((i * 37) % 10) * 0.06).toFixed(2) + 's';
+  l.style.animationDuration = (3.6 + ((i * 53) % 10) * 0.12).toFixed(2) + 's';
+  return l;
+}
+
+// words stay together, every letter floats on its own; returns the letter spans
+function floatText(el, str) {
+  el.textContent = '';
+  const all = [];
+  let n = 0;
+  str.split(' ').forEach(word => {
+    const w = document.createElement('span');
+    w.className = 'w';
+    [...word].forEach(ch => { const l = makeLetter(ch, n++); w.appendChild(l); all.push(l); });
+    el.appendChild(w);
+    el.appendChild(document.createTextNode(' '));
+  });
+  return all;
+}
+
+// mirror what's typed, keeping existing letters so they don't restart
+function syncTyped() {
+  const chars = [...input.value];
+  let keep = 0;
+  while (keep < typedEl.children.length && keep < chars.length &&
+         typedEl.children[keep].textContent === chars[keep]) keep++;
+  while (typedEl.children.length > keep) typedEl.removeChild(typedEl.lastChild);
+  for (let i = keep; i < chars.length; i++) typedEl.appendChild(makeLetter(chars[i], i));
+}
+
+function say(str) {
+  clearTimeout(hideTimer);
+  if (!str) { hint.style.opacity = 0; return; }
+  floatText(hint, str);
+  hint.style.opacity = 1;
+  hideTimer = setTimeout(() => { hint.style.opacity = 0; }, SHOW_MS);
+}
+function enter(name) {
+  current = name;
+  say('');
+  floatText(textEl, rooms[name].text);
+}
+const viewer = document.getElementById('viewer');
+const viewerImg = document.getElementById('viewerImg');
+let song = null;
+let fxFrame = 0;
+const viewerImg2 = document.getElementById('viewerImg2');
+const stage = document.getElementById('stage');
+const flame = document.getElementById('flame');
+const turb = document.getElementById('turb');
+const disp = document.getElementById('disp');
+const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
+
+// fire look: heat-haze warp + orange tint + flicker. b goes 0 (calm) -> 1 (worst)
+function applyBurn(target, flameEl, b, t, flameMax = 0.85, warp = 55, calm = false) {
+  const ts = calm ? t * 0.25 : t;                       // calm = slow, steady shimmer
+  const flicker = calm ? 0.92 + 0.08 * Math.sin(ts * 3.1)
+                       : 0.85 + 0.15 * Math.sin(t * 17) * Math.sin(t * 6.3);
+  disp.setAttribute('scale', (b * warp).toFixed(1));
+  turb.setAttribute('baseFrequency',
+    (0.008 + 0.004 * Math.sin(ts * 1.3)).toFixed(4) + ' ' + (0.025 + 0.012 * Math.sin(ts * 2.1)).toFixed(4));
+  turb.setAttribute('seed', calm ? '3' : String(1 + Math.floor(t * 8) % 20));
+  flameEl.style.opacity = (b * flameMax * flicker).toFixed(3);
+  target.style.filter = b > 0.01
+    ? 'url(#burn) sepia(' + (b * 0.5).toFixed(2) + ') saturate(' + (1 + b * 0.9).toFixed(2) +
+      ') brightness(' + (1 + b * 0.25 * flicker).toFixed(2) + ')'
+    : '';
+}
+
+// overlay crossfade + waving/burning, driven by how far the song has played
+function fxTick(opts) {
+  if (!song) return;
+  const p = song.duration ? clamp(song.currentTime / song.duration) : 0;
+  const t = performance.now() / 1000;
+  if (opts.overlay) viewerImg2.style.opacity = clamp((p - 0.1) / 0.75);
+  if (opts.burn) applyBurn(stage, flame, clamp((p - 0.15) / 0.8), t);
+  fxFrame = requestAnimationFrame(() => fxTick(opts));
+}
+
+function openImage(src, opts = {}) {
+  viewer.classList.toggle('fit', !!opts.fit);
+  viewer.classList.toggle('seq', !!opts.overlay);
+  viewer.classList.toggle('burning', !!opts.burn);
+  if (opts.overlay) { viewerImg2.src = opts.overlay; viewerImg2.style.opacity = 0; }
+  if (opts.audio) {
+    song = new Audio(opts.audio);
+    song.loop = !opts.once;
+    if (opts.closeOnEnd) song.addEventListener('ended', closeImage);
+    song.play().catch(() => {});
+    if (opts.overlay || opts.burn) fxFrame = requestAnimationFrame(() => fxTick(opts));
+  }
+  viewerImg.classList.remove('on');
+  viewerImg.onload = () => viewerImg.classList.add('on');
+  viewerImg.src = src;
+  viewer.hidden = false;
+  viewer.scrollTop = 0;
+  document.body.style.overflow = 'hidden';
+  document.getElementById('close').focus();
+}
+function closeImage() {
+  cancelAnimationFrame(fxFrame);
+  if (song) { song.pause(); song = null; }
+  stage.style.filter = '';
+  flame.style.opacity = 0;
+  viewerImg2.removeAttribute('src');
+  viewer.classList.remove('seq', 'burning');
+  viewer.hidden = true;
+  viewerImg.removeAttribute('src');
+  document.body.style.overflow = starpage.hidden ? '' : 'hidden';
+  if (starpage.hidden) input.focus();
+}
+document.getElementById('close').addEventListener('click', closeImage);
+document.addEventListener('keydown', e => {
+  if (!ghostEl.hidden && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); ghostAdvance(); return; }
+  if (e.key !== 'Escape') return;
+  if (!videoview.hidden) closeVideo();
+  else if (!viewer.hidden) closeImage();
+  else if (!starpage.hidden) closeStar();
+  else if (!ghostEl.hidden) closeGhost();
+  else if (!episodeEl.hidden) closeEpisode();
+  else if (!judgeEl.hidden) closeJudgement();
+});
+
+// ---------- STAR PAGE ----------
+const starpage = document.getElementById('starpage');
+const starTitle = document.getElementById('starTitle');
+const starHint = document.getElementById('starHint');
+const spin = document.getElementById('spin');
+const ctr = document.getElementById('ctr');
+const norm = clean;
+const matches = (value, spec) => spec.split('|').some(x => clean(x) === value);
+const starSolved = STAR.points.map(() => false);
+let starHideTimer;
+let starMusic = null;
+
+// seamless loop: decode the file and loop it in memory, trimming silent edges.
+// onFirstLoop (optional) fires when the first pass ends; the returned object has stop() and fade(seconds)
+function startLoop(src, onFirstLoop) {
+  let stopped = false, node = null, ctx = null, gain = null, el = null, loopTimer = null, fadeTimer = null;
+  const arm = ms => { loopTimer = setTimeout(() => { if (!stopped && onFirstLoop) onFirstLoop(); }, ms); };
+  const fallback = () => {
+    if (stopped) return;
+    el = new Audio(src);
+    el.loop = true;
+    el.play().catch(() => {});
+    if (onFirstLoop) {
+      const go = () => arm(Math.max(0, (el.duration - el.currentTime) * 1000));
+      if (el.readyState >= 1) go(); else el.addEventListener('loadedmetadata', go);
+    }
+  };
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) { fallback(); }
+  else {
+    ctx = new Ctx();
+    if (ctx.resume) ctx.resume();
+    fetch(src)
+      .then(r => { if (!r.ok) throw new Error('load'); return r.arrayBuffer(); })
+      .then(buf => new Promise((ok, no) => ctx.decodeAudioData(buf, ok, no)))
+      .then(audio => {
+        if (stopped) return;
+        const ch = [];
+        for (let i = 0; i < audio.numberOfChannels; i++) ch.push(audio.getChannelData(i));
+        const quiet = i => ch.every(c => Math.abs(c[i]) < 0.0002);
+        let a = 0, b = audio.length - 1;
+        while (a < b && quiet(a)) a++;
+        while (b > a && quiet(b)) b--;
+        node = ctx.createBufferSource();
+        node.buffer = audio;
+        node.loop = true;
+        node.loopStart = a / audio.sampleRate;
+        node.loopEnd = (b + 1) / audio.sampleRate;
+        gain = ctx.createGain();
+        node.connect(gain);
+        gain.connect(ctx.destination);
+        node.start(0, node.loopStart);
+        if (onFirstLoop) arm((node.loopEnd - node.loopStart) * 1000);
+      })
+      .catch(fallback);
+  }
+  return {
+    stop() {
+      stopped = true;
+      clearTimeout(loopTimer);
+      clearInterval(fadeTimer);
+      try { if (node) node.stop(); } catch (e) {}
+      if (ctx) ctx.close().catch(() => {});
+      if (el) el.pause();
+    },
+    fade(sec) {
+      if (gain) {
+        gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + sec);
+      } else if (el) {
+        const step = el.volume / (sec * 20);
+        fadeTimer = setInterval(() => { el.volume = Math.max(0, el.volume - step); }, 50);
+      }
+    }
+  };
+}
+
+function sayStar(str) {
+  clearTimeout(starHideTimer);
+  if (!str) { starHint.style.opacity = 0; return; }
+  floatText(starHint, str);
+  starHint.style.opacity = 1;
+  starHideTimer = setTimeout(() => { starHint.style.opacity = 0; }, SHOW_MS);
+}
+
+// the five boxes: they sit in the star's group, so they spin with it and
+// their bottoms always face the middle
+const starBoxes = STAR.points.map((spec, i) => {
+  const box = document.createElement('input');
+  box.className = 'pt';
+  box.type = 'text';
+  box.maxLength = 24;
+  box.autocomplete = 'off';
+  box.spellcheck = false;
+  box.setAttribute('aria-label', 'Answer ' + (i + 1));
+  box.style.setProperty('--a', (i * 360 / STAR.points.length) + 'deg');
+  box.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (starSolved[i]) return;
+    if (matches(norm(box.value), spec)) {
+      starSolved[i] = true;
+      box.readOnly = true;
+      if (starSolved.every(Boolean)) revealCenter();
+    } else {
+      box.value = '';
+    }
+  });
+  spin.appendChild(box);
+  return box;
+});
+
+const centerAnswers = {};
+for (const [keys, val] of Object.entries(STAR.center)) {
+  keys.split('|').forEach(k => centerAnswers[clean(k)] = val);
+}
+function revealCenter() {
+  ctr.classList.add('show');
+  ctr.tabIndex = 0;
+  setTimeout(() => ctr.focus(), 600);
+}
+ctr.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const hit = centerAnswers[norm(ctr.value)];
+  ctr.value = '';
+  if (!hit) return;
+  if (hit.image) openImage(hit.image, hit);
+  else if (hit.go && rooms[hit.go]) { closeStar(); enter(hit.go); if (hit.say) say(hit.say); }
+  else sayStar(hit.say);
+});
+
+function openStar() {
+  floatText(starTitle, STAR.title);
+  starpage.hidden = false;
+  document.body.style.overflow = 'hidden';
+  input.blur();
+  if (starSolved.every(Boolean)) revealCenter();
+  if (starMusic) starMusic.stop();
+  starMusic = startLoop(STAR.music);
+}
+function closeStar() {
+  if (starMusic) { starMusic.stop(); starMusic = null; }
+  sayStar('');
+  starpage.hidden = true;
+  document.body.style.overflow = '';
+  input.focus();
+}
+
+const videoview = document.getElementById('videoview');
+const vid = document.getElementById('vid');
+function openVideo(src) {
+  vid.src = src;
+  videoview.hidden = false;
+  document.body.style.overflow = 'hidden';
+  input.blur();
+  vid.play().catch(() => {});
+}
+function closeVideo() {
+  vid.pause();
+  vid.removeAttribute('src');
+  vid.load();
+  videoview.hidden = true;
+  document.body.style.overflow = starpage.hidden ? '' : 'hidden';
+  if (starpage.hidden) input.focus();
+}
+vid.addEventListener('ended', closeVideo);
+document.getElementById('vclose').addEventListener('click', closeVideo);
+
+// ---------- DIALOGUE PAGE ----------
+const ghostEl = document.getElementById('ghost');
+const ghostStage = document.getElementById('ghostStage');
+const ghostImg = document.getElementById('ghostImg');
+const ghostText = document.getElementById('ghostText');
+const ghostLine = document.getElementById('ghostLine');
+let gh = null;   // state of the current visit
+
+function ghostParse(raw) {
+  const laugh = /\s*\(laugh\)\s*$/i.test(raw);
+  return { text: raw.replace(/\s*\(laugh\)\s*$/i, ''), laugh };
+}
+function ghostLaugh() {
+  if (!gh) return;
+  const me = gh;
+  const back = () => { if (gh === me) ghostImg.src = GHOST.gif; };
+  if (gh.sfx) gh.sfx.pause();
+  clearTimeout(gh.laughTimer);
+  ghostImg.src = GHOST.laughGif;
+  gh.sfx = new Audio(GHOST.laughSound);
+  gh.sfx.addEventListener('ended', back);
+  gh.sfx.play().catch(() => {});
+  gh.laughTimer = setTimeout(back, 5200);
+}
+function ghostFinishLine() {
+  if (!gh || !gh.typing) return;
+  clearTimeout(gh.typeTimer);
+  gh.letters.forEach(l => l.classList.add('on'));
+  gh.typing = false;
+  if (gh.line.laugh) ghostLaugh();
+}
+function ghostType(i) {
+  if (!gh || !gh.typing) return;
+  if (i >= gh.letters.length) { ghostFinishLine(); return; }
+  gh.letters[i].classList.add('on');
+  const ch = gh.letters[i].textContent;
+  gh.typeTimer = setTimeout(() => ghostType(i + 1), /[.,?!]/.test(ch) ? 300 : 45);
+}
+function ghostNext() {
+  gh.idx++;
+  gh.line = ghostParse(GHOST.lines[gh.idx]);
+  gh.letters = floatText(ghostLine, gh.line.text);
+  gh.typing = true;
+  ghostType(0);
+}
+function ghostAdvance() {
+  if (!gh || !gh.ready || gh.ending) return;
+  if (gh.typing) ghostFinishLine();
+  else if (gh.idx < GHOST.lines.length - 1) ghostNext();
+  else ghostEnd();
+}
+function ghostEnd() {
+  gh.ending = true;
+  ghostStage.classList.remove('in');
+  ghostStage.classList.add('out');
+  ghostText.classList.add('out');
+  gh.music.fade(3.5);
+  gh.endTimer = setTimeout(closeGhost, 4300);
+}
+function openGhost() {
+  if (gh) closeGhost();
+  ghostEl.hidden = false;
+  document.body.style.overflow = 'hidden';
+  input.blur();
+  ghostStage.classList.remove('in', 'out');
+  ghostText.classList.remove('out');
+  ghostLine.textContent = '';
+  ghostImg.src = GHOST.gif;
+  const me = { idx: -1, typing: false, ready: false, ending: false,
+               letters: [], line: null, sfx: null };
+  gh = me;
+  me.music = startLoop(GHOST.music, () => {          // first pass of the song is over
+    if (gh !== me) return;
+    me.ready = true;
+    ghostStage.classList.add('in');
+    ghostNext();
+  });
+}
+function closeGhost() {
+  if (!gh) return;
+  clearTimeout(gh.typeTimer); clearTimeout(gh.laughTimer); clearTimeout(gh.endTimer);
+  if (gh.sfx) gh.sfx.pause();
+  gh.music.stop();
+  gh = null;
+  ghostEl.hidden = true;
+  document.body.style.overflow = '';
+  input.focus();
+}
+ghostEl.addEventListener('click', ghostAdvance);
+
+// ---------- NEXT EPISODE PAGE ----------
+const episodeEl = document.getElementById('episode');
+const episodeText = document.getElementById('episodeText');
+let episodeMusic = null;
+function openEpisode() {
+  episodeText.textContent = '';
+  episodeText.classList.remove('in');
+  EPISODE.lines.forEach(line => {
+    const p = document.createElement('p');
+    floatText(p, line);
+    episodeText.appendChild(p);
+  });
+  episodeEl.hidden = false;
+  document.body.style.overflow = 'hidden';
+  input.blur();
+  if (episodeMusic) episodeMusic.stop();
+  episodeMusic = startLoop(EPISODE.music);
+  setTimeout(() => episodeText.classList.add('in'), 50);
+}
+function closeEpisode() {
+  if (episodeMusic) { episodeMusic.stop(); episodeMusic = null; }
+  episodeEl.hidden = true;
+  document.body.style.overflow = '';
+  input.focus();
+}
+
+// ---------- JUDGEMENT PAGE ----------
+const judgeEl = document.getElementById('judge');
+const judgeStage = document.getElementById('judgeStage');
+const judgeImg = document.getElementById('judgeImg');
+const judgeFlame = document.getElementById('judgeFlame');
+const judgeText = document.getElementById('judgeText');
+let jd = null;
+function judgeTick() {
+  if (!jd) return;
+  jd.b += (0.6 - jd.b) * 0.008;                       // fire eases in slowly, then holds
+  applyBurn(judgeStage, judgeFlame, jd.b, performance.now() / 1000, 0.35, 14, true);
+  jd.frame = requestAnimationFrame(judgeTick);
+}
+function openJudgement() {
+  if (jd) closeJudgement();
+  judgeImg.src = JUDGE.image;
+  floatText(judgeText, JUDGE.word);
+  judgeStage.classList.remove('in');
+  judgeEl.hidden = false;
+  document.body.style.overflow = 'hidden';
+  input.blur();
+  jd = { b: 0, frame: 0, music: startLoop(JUDGE.music) };
+  jd.frame = requestAnimationFrame(judgeTick);
+  setTimeout(() => judgeStage.classList.add('in'), 50);
+}
+function closeJudgement() {
+  if (!jd) return;
+  cancelAnimationFrame(jd.frame);
+  jd.music.stop();
+  jd = null;
+  judgeStage.style.filter = '';
+  judgeFlame.style.opacity = 0;
+  judgeEl.hidden = true;
+  document.body.style.overflow = '';
+  input.focus();
+}
+
+function submitAnswer() {
+  const key = clean(input.value);
+  input.value = '';
+  syncTyped();
+  if (!key) return;
+  const room = rooms[current];
+  const hit = room.answers[key];
+  if (!hit) { say(room.fallback); return; }
+  if (hit.video) { openVideo(hit.video); return; }
+  if (hit.page === 'ghost') { openGhost(); return; }
+  if (hit.page === 'episode') { openEpisode(); return; }
+  if (hit.page === 'judgement') { openJudgement(); return; }
+  if (hit.page === 'star') { openStar(); return; }
+  if (hit.image) { openImage(hit.image, hit); return; }
+  if (hit.go && rooms[hit.go]) { enter(hit.go); if (hit.say) say(hit.say); }
+  else say(hit.say);
+}
+document.getElementById('form').addEventListener('submit', e => e.preventDefault());
+input.addEventListener('input', syncTyped);
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); submitAnswer(); }
+});
+enter('start');
+
+// ---------- MAIN SCREEN MUSIC ----------
+let mainMusic = null;
+let mainGesture = false;
+const mainPages = [viewer, videoview, starpage, ghostEl, episodeEl, judgeEl];
+function syncMainMusic() {
+  const pageOpen = mainPages.some(el => !el.hidden);
+  if (pageOpen && mainMusic) { mainMusic.stop(); mainMusic = null; }
+  else if (!pageOpen && mainGesture && !mainMusic) mainMusic = startLoop(MAIN_MUSIC);
+}
+const mainObserver = new MutationObserver(syncMainMusic);
+mainPages.forEach(el => mainObserver.observe(el, { attributes: true, attributeFilter: ['hidden'] }));
+['keydown', 'pointerdown'].forEach(type => document.addEventListener(type, () => {
+  if (mainGesture) return;
+  mainGesture = true;                 // browsers only allow sound after the first key press or click
+  syncMainMusic();
+}, true));
+</script>
+</body>
+</html>
