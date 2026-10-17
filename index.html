@@ -141,6 +141,14 @@
     from { opacity:1; transform:translate(0,0) rotate(0) skewX(0); filter:blur(0); }
     to   { opacity:0; transform:translate(180px,-34px) rotate(24deg) skewX(-24deg); filter:blur(3px); }
   }
+  .lock { position:fixed; inset:0; z-index:100; background:#000; touch-action:none; }
+  .lock[hidden] { display:none; }
+  .lock video { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; }
+  .locktext { position:absolute; left:0; right:0; bottom:4vh; padding:0 6vw; text-align:center;
+    font-size:clamp(1.3rem,4vw,3rem); line-height:1.4; pointer-events:none;
+    text-shadow:3px 3px 0 #000, -3px 3px 0 #000, 3px -3px 0 #000, -3px -3px 0 #000, 0 0 24px #000; }
+  .lockinput { position:fixed; left:0; bottom:0; width:1px; height:1px; opacity:0; border:0; padding:0;
+    background:transparent; color:transparent; font-size:16px; }
   .fade { animation:fade .8s ease both; }
   @keyframes fade { from { opacity:0; } to { opacity:1; } }
   @media (prefers-reduced-motion:reduce) { .l,.fade,.spin { animation:none; } .viewer img { transition:none; } .flame { display:none !important; } .ghoststage, .ghosttext, .episodetext, .judgestage { transition:none; } .windline, .wind .l { animation:none; } }
@@ -188,6 +196,11 @@
 <div id="videoview" class="videoview" hidden>
   <button id="vclose" class="close" type="button" aria-label="Close video">X</button>
   <video id="vid" playsinline></video>
+</div>
+<div id="lock" class="lock" hidden>
+  <video id="lockVid" playsinline loop></video>
+  <div id="lockText" class="locktext"></div>
+  <input id="lockInput" class="lockinput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="">
 </div>
 <div id="viewer" class="viewer" hidden>
   <button id="close" class="close" type="button" aria-label="Close image">X</button>
@@ -353,6 +366,16 @@ const WIND = {
     "OUR GODDESS..."
   ]
 };
+
+/* ----- THE "67" LOCK -----
+   Typing 67 in any form (67, 6 7, 6-7, six seven, sixty-seven...) in any text box locks
+   the site onto this video + text. It survives refreshes (saved in the browser).
+   Typing the reset word on the locked screen puts the site back to normal. */
+const LOCK = {
+  video: "six_seven.mp4",
+  text: "YOU FAILED.. TELL ALIJAH ABOUT THIS TO RECEIVE YOUR NERF",
+  resetWord: "reset"
+};
 /* ============ END EDIT ============ */
 
 const textEl  = document.getElementById('text');
@@ -494,6 +517,7 @@ function closeImage() {
 }
 document.getElementById('close').addEventListener('click', closeImage);
 document.addEventListener('keydown', e => {
+  if (lockActive()) return;
   if (!ghostEl.hidden && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); ghostAdvance(); return; }
   if (!windEl.hidden && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); windAdvance(); return; }
   if (e.key !== 'Escape') return;
@@ -928,6 +952,94 @@ function closeWind() {
 }
 windEl.addEventListener('click', windAdvance);
 
+// ---------- THE "67" LOCK ----------
+const lockEl = document.getElementById('lock');
+const lockVid = document.getElementById('lockVid');
+const lockText = document.getElementById('lockText');
+const lockInput = document.getElementById('lockInput');
+const FAIL_KEY = 'argFailed67';
+const lockActive = () => !lockEl.hidden;
+
+function isFailed() {
+  try { if (localStorage.getItem(FAIL_KEY) === '1') return true; } catch (e) {}
+  return document.cookie.split('; ').some(c => c === FAIL_KEY + '=1');
+}
+function setFailed() {
+  try { localStorage.setItem(FAIL_KEY, '1'); } catch (e) {}
+  document.cookie = FAIL_KEY + '=1; max-age=315360000; path=/; SameSite=Lax';
+}
+function clearFailed() {
+  try { localStorage.removeItem(FAIL_KEY); } catch (e) {}
+  document.cookie = FAIL_KEY + '=; max-age=0; path=/; SameSite=Lax';
+}
+function closeAllPages() {
+  if (!videoview.hidden) closeVideo();
+  if (!viewer.hidden) closeImage();
+  if (!starpage.hidden) closeStar();
+  if (gh) closeGhost();
+  if (!episodeEl.hidden) closeEpisode();
+  if (jd) closeJudgement();
+  if (wd) closeWind();
+}
+function showLock() {
+  floatText(lockText, LOCK.text);
+  lockEl.hidden = false;
+  document.body.style.overflow = 'hidden';
+  lockVid.src = LOCK.video;
+  lockVid.muted = false;
+  // after a refresh the browser may refuse sound until the first key press or click
+  lockVid.play().catch(() => { lockVid.muted = true; lockVid.play().catch(() => {}); });
+  lockInput.value = '';
+  lockInput.focus();
+}
+function triggerLock() {
+  setFailed();
+  closeAllPages();
+  input.value = '';
+  syncTyped();
+  showLock();
+}
+function unlock() {
+  clearFailed();
+  lockVid.pause();
+  lockVid.removeAttribute('src');
+  lockVid.load();
+  lockInput.value = '';
+  lockEl.hidden = true;
+  document.body.style.overflow = '';
+  input.focus();
+}
+function lockWake() {                      // first interaction: bring the sound in, keep typing going
+  if (lockVid.muted) { lockVid.muted = false; lockVid.play().catch(() => {}); }
+  if (document.activeElement !== lockInput) lockInput.focus();
+}
+lockInput.addEventListener('input', () => {
+  const v = lockInput.value.toLowerCase().replace(/[^a-z]/g, '');
+  if (v.includes(LOCK.resetWord)) unlock();
+  else if (v.length > 24) lockInput.value = v.slice(-LOCK.resetWord.length);
+});
+lockInput.addEventListener('blur', () => setTimeout(() => { if (lockActive()) lockInput.focus(); }, 0));
+lockEl.addEventListener('pointerdown', lockWake);
+
+// "67" in any form: exact match fires as you type, anywhere inside a longer entry fires on Enter
+const text67 = v => v.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const EXACT67 = /^(6|six|sixty) ?(7|seven)$/;
+const HAS67 = /(6|six|sixty) ?(7|seven)/;
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (lockActive() || !(t instanceof HTMLInputElement)) return;
+  if (EXACT67.test(text67(t.value))) triggerLock();
+}, true);
+document.addEventListener('keydown', e => {
+  if (lockActive()) { lockWake(); return; }
+  const t = e.target;
+  if (e.key === 'Enter' && t instanceof HTMLInputElement && HAS67.test(text67(t.value))) {
+    e.preventDefault();
+    e.stopPropagation();
+    triggerLock();
+  }
+}, true);
+
 function submitAnswer() {
   const key = clean(input.value);
   input.value = '';
@@ -956,7 +1068,7 @@ enter('start');
 // ---------- MAIN SCREEN MUSIC ----------
 let mainMusic = null;
 let mainGesture = false;
-const mainPages = [viewer, videoview, starpage, ghostEl, episodeEl, judgeEl, windEl];
+const mainPages = [viewer, videoview, starpage, ghostEl, episodeEl, judgeEl, windEl, lockEl];
 function syncMainMusic() {
   const pageOpen = mainPages.some(el => !el.hidden);
   if (pageOpen && mainMusic) { mainMusic.stop(); mainMusic = null; }
@@ -969,6 +1081,8 @@ mainPages.forEach(el => mainObserver.observe(el, { attributes: true, attributeFi
   mainGesture = true;                 // browsers only allow sound after the first key press or click
   syncMainMusic();
 }, true));
+
+if (isFailed()) showLock();      // locked before? straight back to the video, even after a refresh
 </script>
 </body>
 </html>
