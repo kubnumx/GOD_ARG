@@ -120,9 +120,30 @@
     75%   { transform:translate(-2px,1px); }
     87.5% { transform:translate(-2px,0); }
   }
+  .wind { position:fixed; inset:0; z-index:9; background:#000; }
+  .wind[hidden] { display:none; }
+  .windcanvas { position:absolute; inset:0; width:100%; height:100%; transition:opacity 3s ease; }
+  .windcanvas.out { opacity:0; }
+  .windtext { position:absolute; left:0; right:0; bottom:5vh; height:6.5em; padding:0 8vw;
+    display:flex; justify-content:center; align-items:flex-start; text-align:center;
+    font-size:clamp(1.2rem,3vw,2rem); line-height:1.6; }
+  .windline { max-width:32em; animation:gust 8s ease-in-out infinite; }
+  @keyframes gust { 0%,100% { transform:translateX(-5px); } 50% { transform:translateX(12px); } }
+  .wind .l { opacity:0; animation-name:windsway; animation-timing-function:ease-in-out; }
+  .wind .l.on { opacity:1; }
+  @keyframes windsway {
+    0%,100% { transform:translate(0,0) rotate(0) skewX(0); }
+    30%     { transform:translate(5px,-2px) rotate(2deg) skewX(-4deg); }
+    55%     { transform:translate(10px,-1px) rotate(3deg) skewX(-8deg); }
+    80%     { transform:translate(3px,1px) rotate(-1deg) skewX(-2deg); }
+  }
+  @keyframes windblow {
+    from { opacity:1; transform:translate(0,0) rotate(0) skewX(0); filter:blur(0); }
+    to   { opacity:0; transform:translate(180px,-34px) rotate(24deg) skewX(-24deg); filter:blur(3px); }
+  }
   .fade { animation:fade .8s ease both; }
   @keyframes fade { from { opacity:0; } to { opacity:1; } }
-  @media (prefers-reduced-motion:reduce) { .l,.fade,.spin { animation:none; } .viewer img { transition:none; } .flame { display:none !important; } .ghoststage, .ghosttext, .episodetext, .judgestage { transition:none; } }
+  @media (prefers-reduced-motion:reduce) { .l,.fade,.spin { animation:none; } .viewer img { transition:none; } .flame { display:none !important; } .ghoststage, .ghosttext, .episodetext, .judgestage { transition:none; } .windline, .wind .l { animation:none; } }
 </style>
 </head>
 <body>
@@ -151,6 +172,10 @@
     <img id="ghostImg" class="ghostimg" alt="">
   </div>
   <div id="ghostText" class="ghosttext" aria-live="polite"><div id="ghostLine" class="ghostline"></div></div>
+</div>
+<div id="wind" class="wind" hidden>
+  <canvas id="windCanvas" class="windcanvas"></canvas>
+  <div class="windtext" aria-live="polite"><div id="windLine" class="windline"></div></div>
 </div>
 <div id="judge" class="judge" hidden>
   <div id="judgeStage" class="judgestage">
@@ -188,6 +213,7 @@
               add audio: "song.mp3" to loop a song while it's open,
               add fit: true to fit a small image on screen instead of scrolling
               or { video: "clip.mp4" } to play a video fullscreen
+              or { page: "wind" } to open the windy dialogue page (WIND below)
               or { page: "judgement" } to open the fiery image page (JUDGE below)
               or { page: "episode" } to open the "Next Episode" text page (EPISODE below)
               or { page: "ghost" } to open the black-screen dialogue page (GHOST below)
@@ -241,7 +267,9 @@ const rooms = {
       "where are my parents":  { page: "ghost" },
       "trien":                 { image: "TRIEN.gif", audio: "sanctuary.mp3", fit: true },
       "next episode":          { page: "episode" },
-      "what are the eggs for|where will my crimes lead me": { page: "judgement" }
+      "what are the eggs for|where will my crimes lead me": { page: "judgement" },
+      "mr. levi|mr levi|feachure": { video: "feachure_ntsc.mp4" },
+      "the forbidden path":    { page: "wind" }
     },
     fallback: ""
   }
@@ -310,6 +338,20 @@ const JUDGE = {
   image: "judgement.png",
   music: "judgement.mp3",
   word: "JUDGEMENT"
+};
+
+/* ----- WINDY DIALOGUE PAGE -----
+   Black screen, looping music, faint wind streaks, click-through typewriter lines.
+   Each click blows the old line away. streaks: false turns the background wind off. */
+const WIND = {
+  music: "forbidden_path.mp3",
+  startDelay: 3000,        // quiet moment before the first line (milliseconds)
+  streaks: true,
+  lines: [
+    "ITS NOT TOO LATE...",
+    "THERES STILL ANOTHER PATH...",
+    "OUR GODDESS..."
+  ]
 };
 /* ============ END EDIT ============ */
 
@@ -453,6 +495,7 @@ function closeImage() {
 document.getElementById('close').addEventListener('click', closeImage);
 document.addEventListener('keydown', e => {
   if (!ghostEl.hidden && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); ghostAdvance(); return; }
+  if (!windEl.hidden && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); windAdvance(); return; }
   if (e.key !== 'Escape') return;
   if (!videoview.hidden) closeVideo();
   else if (!viewer.hidden) closeImage();
@@ -460,6 +503,7 @@ document.addEventListener('keydown', e => {
   else if (!ghostEl.hidden) closeGhost();
   else if (!episodeEl.hidden) closeEpisode();
   else if (!judgeEl.hidden) closeJudgement();
+  else if (!windEl.hidden) closeWind();
 });
 
 // ---------- STAR PAGE ----------
@@ -784,6 +828,106 @@ function closeJudgement() {
   input.focus();
 }
 
+// ---------- WINDY DIALOGUE PAGE ----------
+const windEl = document.getElementById('wind');
+const windCanvas = document.getElementById('windCanvas');
+const windLine = document.getElementById('windLine');
+let wd = null;
+
+function windStreaks(me) {
+  const c = windCanvas, ctx = c.getContext('2d');
+  const size = () => { c.width = window.innerWidth; c.height = window.innerHeight; };
+  size();
+  me.onResize = size;
+  window.addEventListener('resize', size);
+  const streaks = Array.from({ length: 45 }, () => ({
+    x: Math.random() * c.width, y: Math.random() * c.height,
+    len: 40 + Math.random() * 170, speed: 120 + Math.random() * 380,
+    alpha: 0.04 + Math.random() * 0.14, phase: Math.random() * 6.28
+  }));
+  let last = performance.now();
+  const loop = now => {
+    if (wd !== me) return;
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.lineWidth = 1;
+    for (const k of streaks) {
+      k.x += k.speed * dt;
+      if (k.x - k.len > c.width) { k.x = -10; k.y = Math.random() * c.height; }
+      const y = k.y + Math.sin(now / 1000 * 0.8 + k.phase) * 6;
+      ctx.strokeStyle = 'rgba(205,215,225,' + k.alpha.toFixed(3) + ')';
+      ctx.beginPath(); ctx.moveTo(k.x - k.len, y); ctx.lineTo(k.x, y); ctx.stroke();
+    }
+    me.frame = requestAnimationFrame(loop);
+  };
+  me.frame = requestAnimationFrame(loop);
+}
+function windFinishLine() {
+  if (!wd || !wd.typing) return;
+  clearTimeout(wd.typeTimer);
+  wd.letters.forEach(l => l.classList.add('on'));
+  wd.typing = false;
+}
+function windType(i) {
+  if (!wd || !wd.typing) return;
+  if (i >= wd.letters.length) { windFinishLine(); return; }
+  wd.letters[i].classList.add('on');
+  const ch = wd.letters[i].textContent;
+  wd.typeTimer = setTimeout(() => windType(i + 1), /[.,?!]/.test(ch) ? 320 : 50);
+}
+function windNext() {
+  wd.idx++;
+  wd.letters = floatText(windLine, WIND.lines[wd.idx]);
+  wd.typing = true;
+  windType(0);
+}
+// the old line is carried off by the wind before the next one starts
+function windBlow(done) {
+  wd.busy = true;
+  wd.letters.forEach((l, i) => {
+    const delay = Math.min(i * 0.02, 0.5) + Math.random() * 0.15;
+    l.style.animation = 'windblow .9s ease-in ' + delay.toFixed(2) + 's forwards';
+  });
+  const me = wd;
+  me.blowTimer = setTimeout(() => { if (wd !== me) return; me.busy = false; done(); }, 1600);
+}
+function windAdvance() {
+  if (!wd || !wd.ready || wd.busy || wd.ending) return;
+  if (wd.typing) { windFinishLine(); return; }
+  if (wd.idx < WIND.lines.length - 1) { windBlow(windNext); return; }
+  wd.ending = true;                                   // last line: blow away, fade, go back
+  windBlow(() => {});
+  wd.music.fade(3.5);
+  windCanvas.classList.add('out');
+  wd.endTimer = setTimeout(closeWind, 4300);
+}
+function openWind() {
+  if (wd) closeWind();
+  windEl.hidden = false;
+  document.body.style.overflow = 'hidden';
+  input.blur();
+  windLine.textContent = '';
+  windCanvas.classList.remove('out');
+  const me = { idx: -1, typing: false, ready: false, busy: false, ending: false, letters: [] };
+  wd = me;
+  me.music = startLoop(WIND.music);
+  if (WIND.streaks && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) windStreaks(me);
+  me.startTimer = setTimeout(() => { if (wd !== me) return; me.ready = true; windNext(); }, WIND.startDelay);
+}
+function closeWind() {
+  if (!wd) return;
+  cancelAnimationFrame(wd.frame);
+  clearTimeout(wd.typeTimer); clearTimeout(wd.blowTimer); clearTimeout(wd.endTimer); clearTimeout(wd.startTimer);
+  if (wd.onResize) window.removeEventListener('resize', wd.onResize);
+  wd.music.stop();
+  wd = null;
+  windEl.hidden = true;
+  document.body.style.overflow = '';
+  input.focus();
+}
+windEl.addEventListener('click', windAdvance);
+
 function submitAnswer() {
   const key = clean(input.value);
   input.value = '';
@@ -796,6 +940,7 @@ function submitAnswer() {
   if (hit.page === 'ghost') { openGhost(); return; }
   if (hit.page === 'episode') { openEpisode(); return; }
   if (hit.page === 'judgement') { openJudgement(); return; }
+  if (hit.page === 'wind') { openWind(); return; }
   if (hit.page === 'star') { openStar(); return; }
   if (hit.image) { openImage(hit.image, hit); return; }
   if (hit.go && rooms[hit.go]) { enter(hit.go); if (hit.say) say(hit.say); }
@@ -811,7 +956,7 @@ enter('start');
 // ---------- MAIN SCREEN MUSIC ----------
 let mainMusic = null;
 let mainGesture = false;
-const mainPages = [viewer, videoview, starpage, ghostEl, episodeEl, judgeEl];
+const mainPages = [viewer, videoview, starpage, ghostEl, episodeEl, judgeEl, windEl];
 function syncMainMusic() {
   const pageOpen = mainPages.some(el => !el.hidden);
   if (pageOpen && mainMusic) { mainMusic.stop(); mainMusic = null; }
