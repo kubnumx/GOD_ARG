@@ -149,6 +149,9 @@
     text-shadow:3px 3px 0 #000, -3px 3px 0 #000, 3px -3px 0 #000, -3px -3px 0 #000, 0 0 24px #000; }
   .lockinput { position:fixed; left:0; bottom:0; width:1px; height:1px; opacity:0; border:0; padding:0;
     background:transparent; color:transparent; font-size:16px; }
+  .blank { position:fixed; inset:0; z-index:9; background:#000; }
+  .blank[hidden] { display:none; }
+  .found .judgeimg { object-fit:contain; transform:none; }
   .fade { animation:fade .8s ease both; }
   @keyframes fade { from { opacity:0; } to { opacity:1; } }
   @media (prefers-reduced-motion:reduce) { .l,.fade,.spin { animation:none; } .viewer img { transition:none; } .flame { display:none !important; } .ghoststage, .ghosttext, .episodetext, .judgestage { transition:none; } .windline, .wind .l { animation:none; } }
@@ -184,6 +187,13 @@
 <div id="wind" class="wind" hidden>
   <canvas id="windCanvas" class="windcanvas"></canvas>
   <div class="windtext" aria-live="polite"><div id="windLine" class="windline"></div></div>
+</div>
+<div id="blank" class="blank" hidden></div>
+<div id="found" class="judge found" hidden>
+  <div id="foundStage" class="judgestage">
+    <img id="foundImg" class="judgeimg" alt="">
+  </div>
+  <div id="foundText" class="judgetext" aria-live="polite"></div>
 </div>
 <div id="judge" class="judge" hidden>
   <div id="judgeStage" class="judgestage">
@@ -226,6 +236,9 @@
               add audio: "song.mp3" to loop a song while it's open,
               add fit: true to fit a small image on screen instead of scrolling
               or { video: "clip.mp4" } to play a video fullscreen
+              or { page: "blank", audio: "x.mp3", once: true } for a blank screen playing audio
+                (once: true = play once then go back; leave it out to loop)
+              or { page: "found" } to open the "FOUND HER!" picture page (FOUND below)
               or { page: "wind" } to open the windy dialogue page (WIND below)
               or { page: "judgement" } to open the fiery image page (JUDGE below)
               or { page: "episode" } to open the "Next Episode" text page (EPISODE below)
@@ -269,7 +282,7 @@ const rooms = {
       "roofus":              { say: "Stupid Dog." },
       "matter":              { say: "Why Is It Still So Hard To Be?" },
       "tails of hell":       { say: "He Gave You The Eggs?" },
-      "erlang shen|sage":    { say: "Too Early" },
+      "erlang shen":         { say: "Too Early" },
       "the doctrine of power": { image: "doctrine_upscaled.png" },
       "celestial festival":    { image: "F1.png", audio: "F2.mp3", fit: true },
       "jinchi":                { image: "JINCHI_WAS_A_IDIOT.png", overlay: "HERES_WHY.png",
@@ -282,7 +295,9 @@ const rooms = {
       "next episode":          { page: "episode" },
       "what are the eggs for|where will my crimes lead me": { page: "judgement" },
       "mr. levi|mr levi|feachure": { video: "feachure_ntsc.mp4" },
-      "the forbidden path":    { page: "wind" }
+      "the forbidden path":    { page: "wind" },
+      "the sage|sage|the knight|knight": { page: "blank", audio: "KNIGHT_AUDIO.mp3", once: true },
+      "guanyin":               { page: "found" }
     },
     fallback: ""
   }
@@ -334,10 +349,9 @@ const GHOST = {
 const EPISODE = {
   music: "FRIENDS.mp3",
   lines: [
-    "Oh uh the next episode?",
-    "honestly i dont know myself",
-    "Come back to this page every episode and itll change",
-    "A answer may be here someday."
+    "HEY we did another episode! i liked that fight.",
+    "Uh for now theres not much here... sooooo check back next episode",
+    "Who is She? Who Is God?"
   ]
 };
 
@@ -345,6 +359,13 @@ const EPISODE = {
    Loops on the question page. It starts at the first key press or click (browsers
    block sound before that), pauses while any other page is open, and resumes after. */
 const MAIN_MUSIC = "another_him.mp3";
+
+/* ----- "FOUND HER!" PAGE ----- */
+const FOUND = {
+  image: "guanyin.png",
+  music: "crowd_small.mp3",
+  word: "FOUND HER!"
+};
 
 /* ----- JUDGEMENT PAGE ----- */
 const JUDGE = {
@@ -528,6 +549,8 @@ document.addEventListener('keydown', e => {
   else if (!episodeEl.hidden) closeEpisode();
   else if (!judgeEl.hidden) closeJudgement();
   else if (!windEl.hidden) closeWind();
+  else if (!blankEl.hidden) closeBlank();
+  else if (!foundEl.hidden) closeFound();
 });
 
 // ---------- STAR PAGE ----------
@@ -980,6 +1003,8 @@ function closeAllPages() {
   if (!episodeEl.hidden) closeEpisode();
   if (jd) closeJudgement();
   if (wd) closeWind();
+  closeBlank();
+  closeFound();
 }
 function showLock() {
   floatText(lockText, LOCK.text);
@@ -1040,6 +1065,54 @@ document.addEventListener('keydown', e => {
   }
 }, true);
 
+// ---------- BLANK SCREEN + "FOUND HER!" PAGES ----------
+const blankEl = document.getElementById('blank');
+const foundEl = document.getElementById('found');
+const foundStage = document.getElementById('foundStage');
+const foundImg = document.getElementById('foundImg');
+const foundText = document.getElementById('foundText');
+let blankAudio = null, blankMusic = null, foundMusic = null;
+
+function openBlank(opts) {
+  closeBlank();
+  blankEl.hidden = false;
+  document.body.style.overflow = 'hidden';
+  input.blur();
+  if (opts.once) {                                   // play once, then back to the question page
+    blankAudio = new Audio(opts.audio);
+    blankAudio.addEventListener('ended', closeBlank);
+    blankAudio.play().catch(() => {});
+  } else {
+    blankMusic = startLoop(opts.audio);
+  }
+}
+function closeBlank() {
+  if (blankAudio) { blankAudio.pause(); blankAudio = null; }
+  if (blankMusic) { blankMusic.stop(); blankMusic = null; }
+  if (blankEl.hidden) return;
+  blankEl.hidden = true;
+  document.body.style.overflow = '';
+  input.focus();
+}
+function openFound() {
+  if (!foundEl.hidden) closeFound();
+  foundImg.src = FOUND.image;
+  floatText(foundText, FOUND.word);
+  foundStage.classList.remove('in');
+  foundEl.hidden = false;
+  document.body.style.overflow = 'hidden';
+  input.blur();
+  foundMusic = startLoop(FOUND.music);
+  setTimeout(() => foundStage.classList.add('in'), 50);
+}
+function closeFound() {
+  if (foundMusic) { foundMusic.stop(); foundMusic = null; }
+  if (foundEl.hidden) return;
+  foundEl.hidden = true;
+  document.body.style.overflow = '';
+  input.focus();
+}
+
 function submitAnswer() {
   const key = clean(input.value);
   input.value = '';
@@ -1053,6 +1126,8 @@ function submitAnswer() {
   if (hit.page === 'episode') { openEpisode(); return; }
   if (hit.page === 'judgement') { openJudgement(); return; }
   if (hit.page === 'wind') { openWind(); return; }
+  if (hit.page === 'blank') { openBlank(hit); return; }
+  if (hit.page === 'found') { openFound(); return; }
   if (hit.page === 'star') { openStar(); return; }
   if (hit.image) { openImage(hit.image, hit); return; }
   if (hit.go && rooms[hit.go]) { enter(hit.go); if (hit.say) say(hit.say); }
@@ -1068,7 +1143,7 @@ enter('start');
 // ---------- MAIN SCREEN MUSIC ----------
 let mainMusic = null;
 let mainGesture = false;
-const mainPages = [viewer, videoview, starpage, ghostEl, episodeEl, judgeEl, windEl, lockEl];
+const mainPages = [viewer, videoview, starpage, ghostEl, episodeEl, judgeEl, windEl, blankEl, foundEl, lockEl];
 function syncMainMusic() {
   const pageOpen = mainPages.some(el => !el.hidden);
   if (pageOpen && mainMusic) { mainMusic.stop(); mainMusic = null; }
