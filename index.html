@@ -62,6 +62,8 @@
   .spin:focus-within { animation-play-state:paused; }
   @keyframes starspin { to { transform:rotate(360deg); } }
   .starline { position:absolute; inset:0; width:100%; height:100%; }
+  .tri { fill:#b30000; opacity:0; transition:opacity 4s ease; }
+  .tri.red { opacity:.9; }
   .starline path { fill:none; stroke:var(--fg); stroke-width:1.5; vector-effect:non-scaling-stroke; stroke-linejoin:miter; }
   .pt, .ctr { position:absolute; background:transparent; color:var(--fg); border:0; border-radius:0; caret-color:var(--fg);
     font:inherit; font-size:calc(var(--S) * .016); text-align:center; padding:0 .2em; outline:none; }
@@ -172,7 +174,7 @@
   <div id="starTitle" class="startitle" aria-live="polite"></div>
   <div class="starwrap">
     <div id="spin" class="spin">
-      <svg class="starline" viewBox="0 0 100 100" aria-hidden="true"><path d="M50.00 2.00 L78.21 88.83 L4.35 35.17 L95.65 35.17 L21.79 88.83 L50.00 2.00 Z"/></svg>
+      <svg class="starline" viewBox="0 0 100 100" aria-hidden="true"><polygon id="tri0" class="tri" points="50.00,2.00 39.22,35.17 60.78,35.17"/><polygon id="tri1" class="tri" points="95.65,35.17 60.78,35.17 67.44,55.67"/><polygon id="tri2" class="tri" points="78.21,88.83 67.44,55.67 50.00,68.33"/><polygon id="tri3" class="tri" points="21.79,88.83 50.00,68.33 32.56,55.67"/><polygon id="tri4" class="tri" points="4.35,35.17 32.56,55.67 39.22,35.17"/><path d="M50.00 2.00 L78.21 88.83 L4.35 35.17 L95.65 35.17 L21.79 88.83 L50.00 2.00 Z"/></svg>
     </div>
     <input id="ctr" class="ctr" type="text" maxlength="24" autocomplete="off" spellcheck="false" tabindex="-1" aria-label="Final answer">
   </div>
@@ -282,7 +284,7 @@ const rooms = {
       "roofus":              { say: "Stupid Dog." },
       "matter":              { say: "Why Is It Still So Hard To Be?" },
       "tails of hell":       { say: "He Gave You The Eggs?" },
-      "erlang shen":         { say: "Too Early" },
+      "erlang shen|sage":    { say: "Too Early" },
       "the doctrine of power": { image: "doctrine_upscaled.png" },
       "celestial festival":    { image: "F1.png", audio: "F2.mp3", fit: true },
       "jinchi":                { image: "JINCHI_WAS_A_IDIOT.png", overlay: "HERES_WHY.png",
@@ -296,7 +298,6 @@ const rooms = {
       "what are the eggs for|where will my crimes lead me": { page: "judgement" },
       "mr. levi|mr levi|feachure": { video: "feachure_ntsc.mp4" },
       "the forbidden path":    { page: "wind" },
-      "the sage|sage|the knight|knight": { page: "blank", audio: "KNIGHT_AUDIO.mp3", once: true },
       "guanyin":               { page: "found" }
     },
     fallback: ""
@@ -307,13 +308,20 @@ const rooms = {
 
 /* ----- STAR PAGE -----
    points: the 5 answers, clockwise starting from the point at the top when the
-           page opens (use | for alternates, e.g. "tyce|tizhae")
+           page opens (use | for alternates, e.g. "tyce|tizhae"). Typing a point's
+           answer in its box turns that triangle red. Progress is saved in the browser.
    center: appears after all 5 points are right; same format as room answers
            ({ say: "..." }, { go: "room" } or { image: "x.png" })              */
 const STAR = {
   music: "d.mp3",
   title: "What do you think I mean?",
   points: ["answer1", "answer2", "answer3", "answer4", "answer5"],
+  pointSound: "DINGLE1.mp3",          // plays when a point's own answer turns it red ("" = silent)
+  anyPoint: {                         // answers that work in ANY box and turn that box's triangle red
+    "her grave": { sound: "DINGLE1.mp3" }
+  },
+  anyPointOnce: true,                 // each of those answers can only be used once
+
   center: {
     "centeranswer": { say: "..." }
   }
@@ -349,9 +357,11 @@ const GHOST = {
 const EPISODE = {
   music: "FRIENDS.mp3",
   lines: [
-    "HEY we did another episode! i liked that fight.",
-    "Uh for now theres not much here... sooooo check back next episode",
-    "Who is She? Who Is God?"
+    "Well i'm going on hiatus for now!",
+    "Tyce got a inter planned so i dont really gotta do this one",
+    "May or may not cancel too idk yet",
+    "I did promise a answer for the ARG here, So ill give you one",
+    "HER GRAVE...."
   ]
 };
 
@@ -561,7 +571,41 @@ const spin = document.getElementById('spin');
 const ctr = document.getElementById('ctr');
 const norm = clean;
 const matches = (value, spec) => spec.split('|').some(x => clean(x) === value);
-const starSolved = STAR.points.map(() => false);
+// saved progress: which points are red, what was typed in them, which "any box" answers are used
+const STAR_KEY = 'argStarState';
+function loadStarState() {
+  let raw = null;
+  try { raw = localStorage.getItem(STAR_KEY); } catch (e) {}
+  if (!raw) {
+    const c = document.cookie.split('; ').find(x => x.startsWith(STAR_KEY + '='));
+    if (c) raw = decodeURIComponent(c.slice(STAR_KEY.length + 1));
+  }
+  let saved = null;
+  try { saved = raw ? JSON.parse(raw) : null; } catch (e) {}
+  const n = STAR.points.length;
+  const st = { red: Array(n).fill(false), values: Array(n).fill(''), any: {} };
+  if (saved) {
+    for (let i = 0; i < n; i++) { st.red[i] = !!(saved.red && saved.red[i]); st.values[i] = (saved.values && saved.values[i]) || ''; }
+    st.any = saved.any || {};
+  }
+  return st;
+}
+function saveStarState() {
+  const json = JSON.stringify(starState);
+  try { localStorage.setItem(STAR_KEY, json); } catch (e) {}
+  document.cookie = STAR_KEY + '=' + encodeURIComponent(json) + '; max-age=315360000; path=/; SameSite=Lax';
+}
+const starState = loadStarState();
+const starTris = STAR.points.map((_, i) => document.getElementById('tri' + i));
+const starAny = {};
+Object.entries(STAR.anyPoint || {}).forEach(([keys, val], id) => {
+  keys.split('|').forEach(k => starAny[clean(k)] = { id: String(id), sound: val.sound });
+});
+function starPing(src) {
+  if (!src) return;
+  const a = new Audio(src);
+  a.play().catch(() => {});
+}
 let starHideTimer;
 let starMusic = null;
 
@@ -649,17 +693,30 @@ const starBoxes = STAR.points.map((spec, i) => {
   box.spellcheck = false;
   box.setAttribute('aria-label', 'Answer ' + (i + 1));
   box.style.setProperty('--a', (i * 360 / STAR.points.length) + 'deg');
+  if (starState.red[i]) {                                // restore saved progress
+    box.value = starState.values[i];
+    box.readOnly = true;
+    starTris[i].classList.add('red');
+  }
   box.addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    if (starSolved[i]) return;
-    if (matches(norm(box.value), spec)) {
-      starSolved[i] = true;
-      box.readOnly = true;
-      if (starSolved.every(Boolean)) revealCenter();
-    } else {
-      box.value = '';
+    if (starState.red[i]) return;
+    const v = norm(box.value);
+    let sound = null, anyId = null, ok = false;
+    if (matches(v, spec)) { ok = true; sound = STAR.pointSound; }
+    else if (starAny[v] && !(STAR.anyPointOnce && starState.any[starAny[v].id] !== undefined)) {
+      ok = true; anyId = starAny[v].id; sound = starAny[v].sound || STAR.pointSound;
     }
+    if (!ok) { box.value = ''; return; }
+    starState.red[i] = true;
+    starState.values[i] = box.value.trim();
+    if (anyId !== null) starState.any[anyId] = i;
+    box.readOnly = true;
+    starTris[i].classList.add('red');
+    starPing(sound);
+    saveStarState();
+    if (starState.red.every(Boolean)) revealCenter();
   });
   spin.appendChild(box);
   return box;
@@ -690,7 +747,7 @@ function openStar() {
   starpage.hidden = false;
   document.body.style.overflow = 'hidden';
   input.blur();
-  if (starSolved.every(Boolean)) revealCenter();
+  if (starState.red.every(Boolean)) revealCenter();
   if (starMusic) starMusic.stop();
   starMusic = startLoop(STAR.music);
 }
