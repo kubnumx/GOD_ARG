@@ -223,6 +223,10 @@
   </div>
 </div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="warp" x="-3%" y="-3%" width="106%" height="106%">
+    <feTurbulence id="turbW" type="fractalNoise" baseFrequency="0.011 0.016" numOctaves="2" seed="7" result="nw"/>
+    <feDisplacementMap id="dispW" in="SourceGraphic" in2="nw" scale="0" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
   <filter id="burn" x="-5%" y="-5%" width="110%" height="110%">
     <feTurbulence id="turb" type="fractalNoise" baseFrequency="0.01 0.03" numOctaves="2" seed="3" result="n"/>
     <feDisplacementMap id="disp" in="SourceGraphic" in2="n" scale="0" xChannelSelector="R" yChannelSelector="G"/>
@@ -321,6 +325,7 @@ const STAR = {
     "her grave": { sound: "DINGLE1.mp3" }
   },
   anyPointOnce: true,                 // each of those answers can only be used once
+  distortion: 2.2,                    // how much the site warps for each answered point (pixels; 0 = off)
 
   center: {
     "centeranswer": { say: "..." }
@@ -604,6 +609,7 @@ Object.entries(STAR.anyPoint || {}).forEach(([keys, val], id) => {
 function starPing(src) {
   if (!src) return;
   const a = new Audio(src);
+  a.volume = 1;
   a.play().catch(() => {});
 }
 let starHideTimer;
@@ -693,8 +699,7 @@ const starBoxes = STAR.points.map((spec, i) => {
   box.spellcheck = false;
   box.setAttribute('aria-label', 'Answer ' + (i + 1));
   box.style.setProperty('--a', (i * 360 / STAR.points.length) + 'deg');
-  if (starState.red[i]) {                                // restore saved progress
-    box.value = starState.values[i];
+  if (starState.red[i]) {                                // restore saved progress (just red, no text)
     box.readOnly = true;
     starTris[i].classList.add('red');
   }
@@ -710,7 +715,8 @@ const starBoxes = STAR.points.map((spec, i) => {
     }
     if (!ok) { box.value = ''; return; }
     starState.red[i] = true;
-    starState.values[i] = box.value.trim();
+    starState.values[i] = '';
+    box.value = '';                                      // the text vanishes, only the red stays
     if (anyId !== null) starState.any[anyId] = i;
     box.readOnly = true;
     starTris[i].classList.add('red');
@@ -721,6 +727,26 @@ const starBoxes = STAR.points.map((spec, i) => {
   spin.appendChild(box);
   return box;
 });
+
+// ---------- slight, growing distortion (one step per answered point, saved) ----------
+const warpRoots = [document.querySelector('main'), starpage];
+const warpDisp = document.getElementById('dispW');
+const warpTurb = document.getElementById('turbW');
+let warpCur = 0, warpFrameCount = 0;
+function warpTick(now) {
+  requestAnimationFrame(warpTick);
+  if (++warpFrameCount % 2) return;                                   // ~30 updates a second is plenty
+  const blocked = [viewer, videoview, ghostEl, episodeEl, judgeEl, windEl, blankEl, foundEl, lockEl].some(el => !el.hidden);
+  if (blocked) return;                                                // other pages keep their own look
+  const target = starState.red.filter(Boolean).length * (STAR.distortion || 0);
+  warpCur += (target - warpCur) * 0.04;                               // eases up when a new point turns red
+  if (warpCur < 0.05) { warpRoots.forEach(el => { el.style.filter = ''; }); return; }
+  const t = now / 1000;
+  warpDisp.setAttribute('scale', warpCur.toFixed(2));
+  warpTurb.setAttribute('baseFrequency',
+    (0.011 + 0.003 * Math.sin(t * 0.4)).toFixed(4) + ' ' + (0.016 + 0.004 * Math.sin(t * 0.55)).toFixed(4));
+  warpRoots.forEach(el => { el.style.filter = 'url(#warp)'; });
+}
 
 const centerAnswers = {};
 for (const [keys, val] of Object.entries(STAR.center)) {
@@ -1214,6 +1240,7 @@ mainPages.forEach(el => mainObserver.observe(el, { attributes: true, attributeFi
   syncMainMusic();
 }, true));
 
+requestAnimationFrame(warpTick);
 if (isFailed()) showLock();      // locked before? straight back to the video, even after a refresh
 </script>
 </body>
