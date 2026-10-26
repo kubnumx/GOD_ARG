@@ -154,6 +154,8 @@
   .blank { position:fixed; inset:0; z-index:9; background:#000; }
   .blank[hidden] { display:none; }
   .found .judgeimg { object-fit:contain; transform:none; }
+  .blackout { position:fixed; inset:0; z-index:200; background:#000; cursor:none; }
+  .blackout[hidden] { display:none; }
   .fade { animation:fade .8s ease both; }
   @keyframes fade { from { opacity:0; } to { opacity:1; } }
   @media (prefers-reduced-motion:reduce) { .l,.fade,.spin { animation:none; } .viewer img { transition:none; } .flame { display:none !important; } .ghoststage, .ghosttext, .episodetext, .judgestage { transition:none; } .windline, .wind .l { animation:none; } }
@@ -209,6 +211,7 @@
   <button id="vclose" class="close" type="button" aria-label="Close video">X</button>
   <video id="vid" playsinline></video>
 </div>
+<div id="blackout" class="blackout" hidden></div>
 <div id="lock" class="lock" hidden>
   <video id="lockVid" playsinline loop></video>
   <div id="lockText" class="locktext"></div>
@@ -302,7 +305,10 @@ const rooms = {
       "what are the eggs for|where will my crimes lead me": { page: "judgement" },
       "mr. levi|mr levi|feachure": { video: "feachure_ntsc.mp4" },
       "the forbidden path":    { page: "wind" },
-      "guanyin":               { page: "found" }
+      "guanyin":               { page: "found" },
+      "farex pull|farex pull my pearl": { video: "FAREX_PULL_MY_PEARL.mp4" },
+      "lord verity":           { video: "LORD_VERITY.mp4" },
+      "aura farmer":           { video: "AURA_FARMER.mp4" }
     },
     fallback: ""
   }
@@ -412,6 +418,11 @@ const LOCK = {
   text: "YOU FAILED.. TELL ALIJAH ABOUT THIS TO RECEIVE YOUR NERF",
   resetWord: "reset"
 };
+
+/* ----- BLACKOUT -----
+   Typing this word (the moment the last letter lands, in any text box) turns the whole
+   site black and silent. It is NOT saved: refreshing the page fixes it. */
+const BLACKOUT_WORD = "jesus";
 /* ============ END EDIT ============ */
 
 const textEl  = document.getElementById('text');
@@ -1196,6 +1207,28 @@ function closeFound() {
   input.focus();
 }
 
+// ---------- BLACKOUT ----------
+const blackoutEl = document.getElementById('blackout');
+const blackoutActive = () => !blackoutEl.hidden;
+function triggerBlackout() {
+  closeAllPages();
+  if (!lockEl.hidden) { lockVid.pause(); lockInput.blur(); }
+  input.value = '';
+  syncTyped();
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  blackoutEl.hidden = false;           // not saved anywhere: a refresh brings everything back
+  document.body.style.overflow = 'hidden';
+}
+const BLACKOUT_RE = new RegExp('(^| )' + BLACKOUT_WORD + '$');
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (blackoutActive() || !(t instanceof HTMLInputElement)) return;
+  if (BLACKOUT_RE.test(text67(t.value))) triggerBlackout();
+}, true);
+document.addEventListener('keydown', e => {
+  if (blackoutActive()) { e.preventDefault(); e.stopPropagation(); }
+}, true);
+
 function submitAnswer() {
   const key = clean(input.value);
   input.value = '';
@@ -1226,7 +1259,7 @@ enter('start');
 // ---------- MAIN SCREEN MUSIC ----------
 let mainMusic = null;
 let mainGesture = false;
-const mainPages = [viewer, videoview, starpage, ghostEl, episodeEl, judgeEl, windEl, blankEl, foundEl, lockEl];
+const mainPages = [viewer, videoview, starpage, ghostEl, episodeEl, judgeEl, windEl, blankEl, foundEl, lockEl, blackoutEl];
 function syncMainMusic() {
   const pageOpen = mainPages.some(el => !el.hidden);
   if (pageOpen && mainMusic) { mainMusic.stop(); mainMusic = null; }
