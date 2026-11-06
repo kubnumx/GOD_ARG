@@ -58,9 +58,7 @@
   .starpage[hidden] { display:none; }
   .startitle { font-size:clamp(1.2rem,3.4vw,2.2rem); text-align:center; min-height:1.6em; }
   .starwrap { position:relative; width:var(--S); height:var(--S); }
-  .spin { position:absolute; inset:0; animation:starspin 120s linear infinite; }
-  .spin:focus-within { animation-play-state:paused; }
-  @keyframes starspin { to { transform:rotate(360deg); } }
+  .spin { position:absolute; inset:0; }
   .starline { position:absolute; inset:0; width:100%; height:100%; }
   .tri { fill:#b30000; opacity:0; transition:opacity 4s ease; }
   .tri.red { opacity:.9; }
@@ -156,6 +154,20 @@
   .found .judgeimg { object-fit:contain; transform:none; }
   .blackout { position:fixed; inset:0; z-index:200; background:#000; cursor:none; }
   .blackout[hidden] { display:none; }
+  .starcontent { position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; gap:2vh; }
+  .starhint { position:relative; z-index:2; }
+  .sfx { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  .sfog { z-index:0; }
+  .sgrain { z-index:5; mix-blend-mode:overlay; opacity:.17; image-rendering:pixelated; }
+  .sscan { z-index:6; background:repeating-linear-gradient(0deg,rgba(0,0,0,.3) 0 1px,transparent 1px 3px); }
+  .svig { z-index:7; background:radial-gradient(ellipse at center,transparent 38%,rgba(0,0,0,.92) 100%);
+    box-shadow:inset 0 0 calc(10vmin + var(--sp,0) * 14vmin) rgba(120,0,0,calc(.25 + var(--sp,0) * .5)); }
+  .starwrap { -webkit-mask-image:radial-gradient(circle 38vmin at var(--mx,50%) var(--my,50%),#000 0%,rgba(0,0,0,.3) 100%);
+    mask-image:radial-gradient(circle 38vmin at var(--mx,50%) var(--my,50%),#000 0%,rgba(0,0,0,.3) 100%); }
+  .starline path.c { stroke:#20e0ff; opacity:.35; mix-blend-mode:screen; }
+  .starline path.r { stroke:#ff2a2a; opacity:.55; mix-blend-mode:screen; }
+  .tri.red { animation:throb 1.15s ease-in-out infinite; }
+  @keyframes throb { 50% { opacity:.6; } }
   .fade { animation:fade .8s ease both; }
   @keyframes fade { from { opacity:0; } to { opacity:1; } }
   @media (prefers-reduced-motion:reduce) { .l,.fade,.spin { animation:none; } .viewer img { transition:none; } .flame { display:none !important; } .ghoststage, .ghosttext, .episodetext, .judgestage { transition:none; } .windline, .wind .l { animation:none; } }
@@ -173,12 +185,15 @@
   <div id="hint"></div>
 </main>
 <div id="starpage" class="starpage" hidden>
+  <canvas id="sFog" class="sfx sfog"></canvas><canvas id="sGrain" class="sfx sgrain"></canvas><div class="sfx sscan"></div><div class="sfx svig"></div>
+  <div class="starcontent">
   <div id="starTitle" class="startitle" aria-live="polite"></div>
-  <div class="starwrap">
+  <div class="starwrap" id="starwrap">
     <div id="spin" class="spin">
-      <svg class="starline" viewBox="0 0 100 100" aria-hidden="true"><polygon id="tri0" class="tri" points="50.00,2.00 39.22,35.17 60.78,35.17"/><polygon id="tri1" class="tri" points="95.65,35.17 60.78,35.17 67.44,55.67"/><polygon id="tri2" class="tri" points="78.21,88.83 67.44,55.67 50.00,68.33"/><polygon id="tri3" class="tri" points="21.79,88.83 50.00,68.33 32.56,55.67"/><polygon id="tri4" class="tri" points="4.35,35.17 32.56,55.67 39.22,35.17"/><path d="M50.00 2.00 L78.21 88.83 L4.35 35.17 L95.65 35.17 L21.79 88.83 L50.00 2.00 Z"/></svg>
+      <svg class="starline" viewBox="0 0 100 100" aria-hidden="true"><polygon id="tri0" class="tri" points="50.00,2.00 39.22,35.17 60.78,35.17"/><polygon id="tri1" class="tri" points="95.65,35.17 60.78,35.17 67.44,55.67"/><polygon id="tri2" class="tri" points="78.21,88.83 67.44,55.67 50.00,68.33"/><polygon id="tri3" class="tri" points="21.79,88.83 50.00,68.33 32.56,55.67"/><polygon id="tri4" class="tri" points="4.35,35.17 32.56,55.67 39.22,35.17"/><path class="c" d="M50.00 2.00 L78.21 88.83 L4.35 35.17 L95.65 35.17 L21.79 88.83 L50.00 2.00 Z"/><path class="r" d="M50.00 2.00 L78.21 88.83 L4.35 35.17 L95.65 35.17 L21.79 88.83 L50.00 2.00 Z"/><path d="M50.00 2.00 L78.21 88.83 L4.35 35.17 L95.65 35.17 L21.79 88.83 L50.00 2.00 Z"/></svg>
     </div>
     <input id="ctr" class="ctr" type="text" maxlength="24" autocomplete="off" spellcheck="false" tabindex="-1" aria-label="Final answer">
+  </div>
   </div>
   <div id="starHint" class="starhint"></div>
 </div>
@@ -328,7 +343,8 @@ const STAR = {
   points: ["answer1", "answer2", "answer3", "answer4", "answer5"],
   pointSound: "DINGLE1.mp3",          // plays when a point's own answer turns it red ("" = silent)
   anyPoint: {                         // answers that work in ANY box and turn that box's triangle red
-    "her grave": { sound: "DINGLE1.mp3" }
+    "her grave": { sound: "DINGLE1.mp3" },
+    "a shadow":  { sound: "DINGLE2.mp3" }          // DINGLE1 slowed and distorted a little
   },
   anyPointOnce: true,                 // each of those answers can only be used once
   distortion: 2.2,                    // how much the site warps for each answered point (pixels; 0 = off)
@@ -368,11 +384,11 @@ const GHOST = {
 const EPISODE = {
   music: "FRIENDS.mp3",
   lines: [
-    "Well i'm going on hiatus for now!",
-    "Tyce got a inter planned so i dont really gotta do this one",
-    "May or may not cancel too idk yet",
-    "I did promise a answer for the ARG here, So ill give you one",
-    "HER GRAVE...."
+    "I guess itd be smarter to continue..",
+    "Does anyone even read this website anymore? id be surprised if they did",
+    "ill keep the answer here for now.. if you still check this little thing i hope your ready",
+    "CHAPTER 4 IS WAITING...",
+    "(Her Grave)"
   ]
 };
 
@@ -740,7 +756,8 @@ const starBoxes = STAR.points.map((spec, i) => {
 });
 
 // ---------- slight, growing distortion (one step per answered point, saved) ----------
-const warpRoots = [document.querySelector('main'), starpage];
+let starGlitch = 0;
+const warpRoots = [document.querySelector('main'), document.querySelector('.starcontent')];
 const warpDisp = document.getElementById('dispW');
 const warpTurb = document.getElementById('turbW');
 let warpCur = 0, warpFrameCount = 0;
@@ -751,9 +768,10 @@ function warpTick(now) {
   if (blocked) return;                                                // other pages keep their own look
   const target = starState.red.filter(Boolean).length * (STAR.distortion || 0);
   warpCur += (target - warpCur) * 0.04;                               // eases up when a new point turns red
-  if (warpCur < 0.05) { warpRoots.forEach(el => { el.style.filter = ''; }); return; }
+  const eff = warpCur + starGlitch * 7;
+  if (eff < 0.05) { warpRoots.forEach(el => { el.style.filter = ''; }); return; }
   const t = now / 1000;
-  warpDisp.setAttribute('scale', warpCur.toFixed(2));
+  warpDisp.setAttribute('scale', eff.toFixed(2));
   warpTurb.setAttribute('baseFrequency',
     (0.011 + 0.003 * Math.sin(t * 0.4)).toFixed(4) + ' ' + (0.016 + 0.004 * Math.sin(t * 0.55)).toFixed(4));
   warpRoots.forEach(el => { el.style.filter = 'url(#warp)'; });
@@ -779,9 +797,92 @@ ctr.addEventListener('keydown', e => {
   else sayStar(hit.say);
 });
 
+// ---------- creepy star page: fog, grain, flashlight, glitching lines, corrupting title, heartbeat ----------
+const sFogCtx = document.getElementById('sFog').getContext('2d');
+const sGrainCtx = document.getElementById('sGrain').getContext('2d');
+document.getElementById('sFog').width = 160; document.getElementById('sFog').height = 90;
+document.getElementById('sGrain').width = document.getElementById('sGrain').height = 96;
+const sGrainData = sGrainCtx.createImageData(96, 96);
+const starwrapEl = document.getElementById('starwrap');
+const lnR = starpage.querySelector('.starline path.r'), lnC = starpage.querySelector('.starline path.c');
+let starAng = 0, starStall = 0, starLast = 0, starFrame = 0, starPulse = 0, starGf = 0;
+let starAc = null, starBeatTimer = 0, starTwTimer = 0, starTitleLetters = [];
+const starLevel = () => starState.red.filter(Boolean).length;
+
+addEventListener('pointermove', e => {                // the flashlight follows the pointer
+  if (starpage.hidden) return;
+  const b = starwrapEl.getBoundingClientRect();
+  starwrapEl.style.setProperty('--mx', (e.clientX - b.left) + 'px');
+  starwrapEl.style.setProperty('--my', (e.clientY - b.top) + 'px');
+});
+function starCorrupt() {
+  if (Math.random() < 0.3) {
+    const ph = ['I SEE YOU', 'BEHIND YOU', 'LOOK CLOSER', 'TOO LATE'][Math.random() * 4 | 0];
+    starTitleLetters = floatText(starTitle, ph);
+    setTimeout(() => { if (!starpage.hidden) starTitleLetters = floatText(starTitle, STAR.title); }, 150);
+    return;
+  }
+  const g = '\u2588\u2593\u2592\u2591#@%&?!';
+  const idx = [0, 0, 0].map(() => Math.random() * starTitleLetters.length | 0);
+  const keep = idx.map(i => starTitleLetters[i] && starTitleLetters[i].textContent);
+  idx.forEach(i => { if (starTitleLetters[i]) starTitleLetters[i].textContent = g[Math.random() * g.length | 0]; });
+  setTimeout(() => idx.forEach((i, j) => { if (starTitleLetters[i]) starTitleLetters[i].textContent = keep[j]; }), 140);
+}
+function starTwitch() {                               // every few seconds the star jerks and glitches
+  starTwTimer = setTimeout(() => {
+    starAng += (Math.random() < 0.5 ? -1 : 1) * (2 + Math.random() * 4);
+    starStall = 0.35; starGlitch = 1; starCorrupt(); starTwitch();
+  }, 4000 + Math.random() * 5500);
+}
+function starThump(t0, v) {
+  const o = starAc.createOscillator(), g = starAc.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(70, t0); o.frequency.exponentialRampToValueAtTime(38, t0 + 0.18);
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(v, t0 + 0.015); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.28);
+  o.connect(g); g.connect(starAc.destination); o.start(t0); o.stop(t0 + 0.3);
+}
+function starBeat() {                                 // heartbeat speeds up with every red point
+  starPulse = 1; setTimeout(() => { starPulse = Math.max(starPulse, 0.55); }, 240);
+  const lvl = starLevel();
+  if (starAc) { const t = starAc.currentTime + 0.02, v = 0.2 + lvl * 0.07; starThump(t, v); starThump(t + 0.24, v * 0.6); }
+  starBeatTimer = setTimeout(starBeat, 60000 / (52 + lvl * 13));
+}
+function starLoop(t) {
+  const dt = Math.min(0.05, (t - starLast) / 1000 || 0), s = t / 1000, lvl = starLevel();
+  starLast = t;
+  starStall = Math.max(0, starStall - dt); starGlitch = Math.max(0, starGlitch - dt * 7);
+  if (!starStall && !spin.contains(document.activeElement)) starAng += (3 + lvl * 1.2) * dt;   // pauses while typing
+  spin.style.transform = 'rotate(' + starAng.toFixed(2) + 'deg)';
+  const dx = starGlitch * 1.8 + lvl * 0.12 + 0.15 * Math.sin(s * 3);
+  lnR.setAttribute('transform', 'translate(' + dx.toFixed(2) + ' 0)');
+  lnC.setAttribute('transform', 'translate(' + (-dx).toFixed(2) + ' 0)');
+  starPulse *= Math.pow(0.03, dt);
+  starpage.style.setProperty('--sp', starPulse.toFixed(3));
+  sFogCtx.globalCompositeOperation = 'source-over'; sFogCtx.fillStyle = '#000'; sFogCtx.fillRect(0, 0, 160, 90);
+  sFogCtx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 6; i++) {
+    const x = 80 + 70 * Math.sin(s * 0.06 * (i + 1) + i * 2), y = 45 + 34 * Math.cos(s * 0.05 * (i + 2) + i);
+    const g = sFogCtx.createRadialGradient(x, y, 0, x, y, 48);
+    g.addColorStop(0, 'rgba(150,10,10,' + (0.07 + lvl * 0.02 + starPulse * 0.05).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    sFogCtx.fillStyle = g; sFogCtx.fillRect(0, 0, 160, 90);
+  }
+  if (++starGf % 2 === 0) {
+    const d = sGrainData.data;
+    for (let i = 0; i < d.length; i += 4) { d[i] = d[i + 1] = d[i + 2] = Math.random() * 255; d[i + 3] = 255; }
+    sGrainCtx.putImageData(sGrainData, 0, 0);
+  }
+  starFrame = requestAnimationFrame(starLoop);
+}
+
 function openStar() {
-  floatText(starTitle, STAR.title);
+  starTitleLetters = floatText(starTitle, STAR.title);
   starpage.hidden = false;
+  starLast = performance.now();
+  starFrame = requestAnimationFrame(starLoop);
+  starTwitch();
+  try { starAc = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+  starBeat();
   document.body.style.overflow = 'hidden';
   input.blur();
   if (starState.red.every(Boolean)) revealCenter();
@@ -789,6 +890,8 @@ function openStar() {
   starMusic = startLoop(STAR.music);
 }
 function closeStar() {
+  cancelAnimationFrame(starFrame); clearTimeout(starTwTimer); clearTimeout(starBeatTimer); starGlitch = 0;
+  if (starAc) { starAc.close().catch(() => {}); starAc = null; }
   if (starMusic) { starMusic.stop(); starMusic = null; }
   sayStar('');
   starpage.hidden = true;
