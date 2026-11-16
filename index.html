@@ -265,6 +265,8 @@
               or { page: "found" } to open the "FOUND HER!" picture page (FOUND below)
               or { page: "wind" } to open the windy dialogue page (WIND below)
               or { page: "judgement" } to open the fiery image page (JUDGE below)
+              or { images: ["a.gif", "b.gif"], audio: "x.mp3", fit: true } for a click-through slideshow
+              or { page: "wise" } to open the Wise Words text page (WISE below)
               or { page: "episode" } to open the "Next Episode" text page (EPISODE below)
               or { page: "ghost" } to open the black-screen dialogue page (GHOST below)
               or { page: "star" } to open the star page (set up in STAR below)
@@ -315,8 +317,10 @@ const rooms = {
       "i think i know":        { page: "star" },
       "unc pushing 41":        { video: "UNC_PUSHING_41.mp4" },
       "where are my parents":  { page: "ghost" },
-      "trien":                 { image: "TRIEN.gif", audio: "sanctuary.mp3", fit: true },
+      "trien":                 { images: ["TRIEN1.gif", "TRIEN2.gif", "TRIEN3.gif", "TRIEN4.gif", "TRIEN5.gif", "TRIEN6.gif"],
+                              audio: "sanctuary.mp3", fit: true },        // a new gif on every click
       "next episode":          { page: "episode" },
+      "wise words":            { page: "wise" },
       "what are the eggs for|where will my crimes lead me": { page: "judgement" },
       "mr. levi|mr levi|feachure": { video: "feachure_ntsc.mp4" },
       "the forbidden path":    { page: "wind" },
@@ -384,11 +388,22 @@ const GHOST = {
 const EPISODE = {
   music: "FRIENDS.mp3",
   lines: [
-    "I guess itd be smarter to continue..",
-    "Does anyone even read this website anymore? id be surprised if they did",
-    "ill keep the answer here for now.. if you still check this little thing i hope your ready",
-    "CHAPTER 4 IS WAITING...",
-    "(Her Grave)"
+    "THE PROPHECY!",
+    "this is where things get serious... the legend of... uh what even is a trien?",
+    "guess thats something to learn huh... chapter 4 will be short, maybe 2 more episodes.",
+    "(HER GRAVE) isnt the only thing im gonna leave her.. how about (A SHADOW)",
+    "hehe.. maybe youll learn who SHE is... soon"
+  ]
+};
+
+/* ----- WISE WORDS PAGE (same kind of page as Next Episode) ----- */
+const WISE = {
+  music: "wise_words.mp3",
+  lines: [
+    "The next generation... glad i was able to see it...",
+    "They were truly ambitious, filled with hope they were!",
+    "haha... its just like you wanted old friend...",
+    "...If your even out there"
   ]
 };
 
@@ -512,6 +527,7 @@ function enter(name) {
 const viewer = document.getElementById('viewer');
 const viewerImg = document.getElementById('viewerImg');
 let song = null;
+let viewerSeq = null;                      // click-through slideshow state
 let fxFrame = 0;
 const viewerImg2 = document.getElementById('viewerImg2');
 const stage = document.getElementById('stage');
@@ -546,7 +562,11 @@ function fxTick(opts) {
   fxFrame = requestAnimationFrame(() => fxTick(opts));
 }
 
+function preloadSeq() {
+  if (viewerSeq && viewerSeq.i + 1 < viewerSeq.list.length) new Image().src = viewerSeq.list[viewerSeq.i + 1];
+}
 function openImage(src, opts = {}) {
+  viewerSeq = opts.images ? { list: opts.images, i: 0 } : null;
   viewer.classList.toggle('fit', !!opts.fit);
   viewer.classList.toggle('seq', !!opts.overlay);
   viewer.classList.toggle('burning', !!opts.burn);
@@ -561,12 +581,14 @@ function openImage(src, opts = {}) {
   viewerImg.classList.remove('on');
   viewerImg.onload = () => viewerImg.classList.add('on');
   viewerImg.src = src;
+  preloadSeq();
   viewer.hidden = false;
   viewer.scrollTop = 0;
   document.body.style.overflow = 'hidden';
   document.getElementById('close').focus();
 }
 function closeImage() {
+  viewerSeq = null;
   cancelAnimationFrame(fxFrame);
   if (song) { song.pause(); song = null; }
   stage.style.filter = '';
@@ -578,6 +600,15 @@ function closeImage() {
   document.body.style.overflow = starpage.hidden ? '' : 'hidden';
   if (starpage.hidden) input.focus();
 }
+viewer.addEventListener('click', e => {      // slideshow: every click brings the next gif, the last click closes it
+  if (!viewerSeq || e.target.closest('.close')) return;
+  viewerSeq.i++;
+  if (viewerSeq.i >= viewerSeq.list.length) { closeImage(); return; }
+  viewerImg.classList.remove('on');
+  viewerImg.onload = () => viewerImg.classList.add('on');
+  viewerImg.src = viewerSeq.list[viewerSeq.i];
+  preloadSeq();
+});
 document.getElementById('close').addEventListener('click', closeImage);
 document.addEventListener('keydown', e => {
   if (lockActive()) return;
@@ -1013,10 +1044,10 @@ ghostEl.addEventListener('click', ghostAdvance);
 const episodeEl = document.getElementById('episode');
 const episodeText = document.getElementById('episodeText');
 let episodeMusic = null;
-function openEpisode() {
+function openEpisode(cfg = EPISODE) {
   episodeText.textContent = '';
   episodeText.classList.remove('in');
-  EPISODE.lines.forEach(line => {
+  cfg.lines.forEach(line => {
     const p = document.createElement('p');
     floatText(p, line);
     episodeText.appendChild(p);
@@ -1025,7 +1056,7 @@ function openEpisode() {
   document.body.style.overflow = 'hidden';
   input.blur();
   if (episodeMusic) episodeMusic.stop();
-  episodeMusic = startLoop(EPISODE.music);
+  episodeMusic = startLoop(cfg.music);
   setTimeout(() => episodeText.classList.add('in'), 50);
 }
 function closeEpisode() {
@@ -1343,12 +1374,13 @@ function submitAnswer() {
   if (hit.video) { openVideo(hit.video); return; }
   if (hit.page === 'ghost') { openGhost(); return; }
   if (hit.page === 'episode') { openEpisode(); return; }
+  if (hit.page === 'wise') { openEpisode(WISE); return; }
   if (hit.page === 'judgement') { openJudgement(); return; }
   if (hit.page === 'wind') { openWind(); return; }
   if (hit.page === 'blank') { openBlank(hit); return; }
   if (hit.page === 'found') { openFound(); return; }
   if (hit.page === 'star') { openStar(); return; }
-  if (hit.image) { openImage(hit.image, hit); return; }
+  if (hit.image || hit.images) { openImage(hit.image || hit.images[0], hit); return; }
   if (hit.go && rooms[hit.go]) { enter(hit.go); if (hit.say) say(hit.say); }
   else say(hit.say);
 }
